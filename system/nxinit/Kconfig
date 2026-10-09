@@ -131,12 +131,15 @@ config SYSTEM_NXINIT_CONTROL
 	bool "Control socket"
 	default n
 	depends on NET_LOCAL_STREAM
+	select NET_LOCAL_SCM
 	---help---
 		A local stream socket through which programs ask NxInit for the
 		services' states, follow their changes, find which service a task
-		is, and start and stop services.  It speaks a text protocol: one
-		command per line, one answer per command, as control.h describes.
-		The svc command speaks it from the shell.
+		is, start and stop services, and report that they are ready (a
+		service with the option "notify", which needs this socket; its
+		caller is known through NET_LOCAL_SCM's SO_PEERCRED).  It speaks
+		a text protocol: one command per line, one answer per command, as
+		control.h describes.  The svc command speaks it from the shell.
 
 if SYSTEM_NXINIT_CONTROL
 
@@ -157,8 +160,8 @@ config SYSTEM_NXINIT_SVC
 	bool "svc command"
 	default y
 	---help---
-		svc state [<service>], svc start|stop <service>, svc who <pid> and
-		svc watch, through the control socket.
+		svc state [<service>], svc start|stop <service>, svc who <pid>,
+		svc watch and svc ready, through the control socket.
 
 endif # SYSTEM_NXINIT_CONTROL
 
@@ -177,6 +180,9 @@ config SYSTEM_NXINIT_TEST
 		sources are appended to the shared CSRCS list, so they are also
 		linked into "init", enlarging it and pulling in the cmocka
 		dependency. Keep this disabled for production Make builds.
+		There the tests also share NxInit's state: run beside a live
+		NxInit, its control socket's watchers see the tests' services
+		change state.
 
 if SYSTEM_NXINIT_TEST
 

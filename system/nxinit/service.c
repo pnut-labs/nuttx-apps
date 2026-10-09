@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -41,6 +42,7 @@
 #include "control.h"
 #include "init.h"
 #include "parser.h"
+#include "property.h"
 #include "service.h"
 
 /****************************************************************************
@@ -105,6 +107,10 @@ static int option_oneshot(FAR struct service_manager_s *sm,
                           int argc, FAR char **argv);
 static int option_console(FAR struct service_manager_s *sm,
                           int argc, FAR char **argv);
+#ifdef CONFIG_SYSTEM_NXINIT_CONTROL
+static int option_notify(FAR struct service_manager_s *sm,
+                         int argc, FAR char **argv);
+#endif
 #ifdef CONFIG_BOARDCTL_RESET
 static int option_reboot_on_failure(FAR struct service_manager_s *sm,
                                     int argc, FAR char **argv);
@@ -122,6 +128,9 @@ static const struct cmd_map_s g_option[] =
   {"override", 1, 1, option_override},
   {"oneshot", 1, 1, option_oneshot},
   {"console", 1, 2, option_console},
+#ifdef CONFIG_SYSTEM_NXINIT_CONTROL
+  {"notify", 1, 1, option_notify},
+#endif
 #ifdef CONFIG_BOARDCTL_RESET
   {"reboot_on_failure", 2, 2, option_reboot_on_failure},
 #endif
@@ -135,6 +144,8 @@ static const struct flag_str_s g_flag_str[] =
   {SVC_RUNNING, "running"},
   {SVC_RESTARTING, "restarting"},
   {SVC_CONSOLE, "console"},
+  {SVC_NOTIFY, "notify"},
+  {SVC_READY, "ready"},
   {SVC_GENTLE_KILL, "gentle_kill"},
   {SVC_REMOVE, "remove"},
   {SVC_SIGKILL, "sigkill"},
@@ -142,9 +153,46 @@ static const struct flag_str_s g_flag_str[] =
 };
 #endif
 
+/* NxInit's property poller, where states are announced; NULL until it is
+ * set up, and in the unit tests
+ */
+
+static FAR struct init_poller_s *g_announce;
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: service_changed
+ *
+ * Description:
+ *   A service's state has changed: set its property, svc.<name>.state,
+ *   for init.rc's triggers, and tell the control socket's watchers.
+ *
+ ****************************************************************************/
+
+static void service_changed(FAR struct service_s *service)
+{
+  char key[NXINIT_SERVICE_NAME_MAX + 16];
+  int n;
+
+  if (g_announce != NULL)
+    {
+      n = snprintf(key, sizeof(key), "svc.%s.state", service->argv[1]);
+      if (n >= 0 && n < (int)sizeof(key))
+        {
+          init_property_set(g_announce, key, init_service_state(service));
+        }
+      else
+        {
+          init_warn("Service '%s': name too long for its property",
+                    service->argv[1]);
+        }
+    }
+
+  init_control_changed(service);
+}
 
 static void add_flags(FAR struct service_s *service, uint32_t flags)
 {
@@ -318,6 +366,29 @@ static int option_console(FAR struct service_manager_s *sm,
   return 0;
 }
 
+/****************************************************************************
+ * Name: option_notify
+ *
+ * Description:
+ *   Handle the service option "notify": the service counts as starting
+ *   until its task reports that it is ready, through the control socket.
+ *   Without the socket the option is unknown, so that such a service is
+ *   not left starting for ever.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SYSTEM_NXINIT_CONTROL
+static int option_notify(FAR struct service_manager_s *sm,
+                         int argc, FAR char **argv)
+{
+  FAR struct service_s *s = list_last_entry(&sm->services, struct service_s,
+                                            node);
+
+  add_flags(s, SVC_NOTIFY);
+  return 0;
+}
+#endif
+
 #ifdef CONFIG_BOARDCTL_RESET
 static int option_reboot_on_failure(FAR struct service_manager_s *sm,
                                     int argc, FAR char **argv)
@@ -415,10 +486,53 @@ FAR const char *init_service_state(FAR struct service_s *service)
 {
   if (check_flags(service, SVC_RUNNING))
     {
-      return check_flags(service, SVC_DISABLED) ? "stopping" : "ready";
+      if (check_flags(service, SVC_DISABLED))
+        {
+          return "stopping";
+        }
+
+      return check_flags(service, SVC_NOTIFY) &&
+             !check_flags(service, SVC_READY) ? "starting" : "ready";
     }
 
   return check_flags(service, SVC_RESTARTING) ? "restarting" : "stopped";
+}
+
+FAR struct init_poller_s *
+init_service_announce(FAR struct init_poller_s *prop)
+{
+  FAR struct init_poller_s *prev = g_announce;
+
+  g_announce = prop;
+  return prev;
+}
+
+int init_service_ready(FAR struct service_s *service)
+{
+  if (!check_flags(service, SVC_RUNNING) ||
+      check_flags(service, SVC_DISABLED))
+    {
+      return -ESRCH;
+    }
+
+  /* One without "notify" is ready from its start: a report from it means
+   * its declaration lacks the option
+   */
+
+  if (!check_flags(service, SVC_NOTIFY))
+    {
+      return -EINVAL;
+    }
+
+  if (!check_flags(service, SVC_READY))
+    {
+      add_flags(service, SVC_READY);
+      init_info("Service '%s' pid %d ready", service->argv[1],
+                service->pid);
+      service_changed(service);
+    }
+
+  return 0;
 }
 
 FAR struct service_s *
@@ -477,7 +591,7 @@ void init_service_reap(FAR struct service_s *service, int status)
   UNUSED(status);
 #endif
 
-  remove_flags(service, SVC_RUNNING);
+  remove_flags(service, SVC_RUNNING | SVC_READY);
   if (check_flags(service, SVC_ONESHOT))
     {
       add_flags(service, SVC_DISABLED | SVC_REMOVE);
@@ -488,7 +602,7 @@ void init_service_reap(FAR struct service_s *service, int status)
       add_flags(service, SVC_RESTARTING);
     }
 
-  init_control_changed(service);
+  service_changed(service);
 }
 
 /****************************************************************************
@@ -614,10 +728,9 @@ int init_service_start(FAR struct service_s *service)
 
   service->pid = pid;
   add_flags(service, SVC_RUNNING);
-  remove_flags(service, SVC_RESTARTING);
-  remove_flags(service, SVC_DISABLED);
+  remove_flags(service, SVC_RESTARTING | SVC_READY | SVC_DISABLED);
   init_info("Started service '%s' pid %d", service->argv[1], service->pid);
-  init_control_changed(service);
+  service_changed(service);
 
   return service->pid;
 }
@@ -650,11 +763,11 @@ int init_service_stop(FAR struct service_s *service)
     {
       remove_flags(service, SVC_RESTARTING);
       init_info("Service '%s' restart cancelled", service->argv[1]);
-      init_control_changed(service);
+      service_changed(service);
       return 0;
     }
 
-  init_control_changed(service);
+  service_changed(service);
 
   if (check_flags(service, SVC_GENTLE_KILL))
     {

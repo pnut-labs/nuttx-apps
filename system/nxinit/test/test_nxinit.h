@@ -89,6 +89,8 @@ void test_nxinit_service_find_by_pid_running(FAR void **state);
 void test_nxinit_control_state(FAR void **state);
 void test_nxinit_control_who(FAR void **state);
 void test_nxinit_control_commands(FAR void **state);
+void test_nxinit_control_ready(FAR void **state);
+void test_nxinit_control_property(FAR void **state);
 #endif
 
 #endif /* __APPS_SYSTEM_NXINIT_TEST_TEST_NXINIT_H */

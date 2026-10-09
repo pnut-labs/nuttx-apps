@@ -28,6 +28,7 @@
  ****************************************************************************/
 
 #include <stdbool.h>
+#include <sys/types.h>
 
 #include "init.h"
 #include "parser.h"
@@ -48,10 +49,15 @@
  *   who <pid>        ok <service>: the service whose task that is
  *   start <service>  ok, also when it runs already
  *   stop <service>   ok
+ *   ready            ok: the caller's service is ready, which a service
+ *                    with the option "notify" says once it has started;
+ *                    only the task NxInit started for the service may say
+ *                    it, not a task that one started (SO_PEERCRED)
  *
  * A command that fails is answered "error <errno> <text>".  A state is
- * ready, restarting, stopping or stopped; the pid is 0 when the service
- * is not running.
+ * starting (a "notify" service that has not said it is ready), ready,
+ * restarting, stopping or stopped; the pid is 0 when the service is not
+ * running.
  *
  * On a connection that watches, an event line may come at any time, also
  * between a command and its answer (a "stop" sends "stopping" first); the
@@ -119,6 +125,7 @@ void init_control_changed(FAR struct service_s *service);
  *
  * Input Parameters:
  *   sm     - The services.
+ *   caller - The caller's task, or -1 when it is not known.
  *   line   - The command, without its newline; changed.
  *   emit   - Called with each line of the answer.
  *   arg    - Passed to emit.
@@ -130,9 +137,9 @@ void init_control_changed(FAR struct service_s *service);
  *
  ****************************************************************************/
 
-int init_control_execute(FAR struct service_manager_s *sm, FAR char *line,
-                         init_control_emit_t emit, FAR void *arg,
-                         FAR bool *watchp);
+int init_control_execute(FAR struct service_manager_s *sm, pid_t caller,
+                         FAR char *line, init_control_emit_t emit,
+                         FAR void *arg, FAR bool *watchp);
 
 #else
 #  define init_control_changed(service)

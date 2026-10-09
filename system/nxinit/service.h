@@ -45,6 +45,8 @@
 #define SVC_RUNNING     (1 << 2)  /* currently active */
 #define SVC_RESTARTING  (1 << 3)  /* waiting to restart */
 #define SVC_CONSOLE     (1 << 4)  /* requires a console as its stdio */
+#define SVC_NOTIFY      (1 << 5)  /* starting until it reports ready */
+#define SVC_READY       (1 << 6)  /* has reported ready since started */
 
 /* This service should be stopped with SIGTERM instead of SIGKILL.
  * Will still be SIGKILLed after timeout period of 200 ms.
@@ -144,11 +146,27 @@ init_service_find_by_pid(FAR struct service_manager_s *sm, const int pid);
 int init_service_parse(FAR const struct parser_s *parser,
                        bool create, FAR char *buf);
 
-/* A service's state, as the control socket names it: ready, stopping,
- * restarting or stopped
+/* A service's state, as the control socket and the property
+ * svc.<name>.state name it: starting, ready, stopping, restarting or
+ * stopped
  */
 
 FAR const char *init_service_state(FAR struct service_s *service);
+
+/* Where the states are announced as properties: NxInit's property poller,
+ * once it is set up.  Returns the poller before.
+ */
+
+struct init_poller_s;
+FAR struct init_poller_s *
+init_service_announce(FAR struct init_poller_s *prop);
+
+/* A "notify" service reports ready, by its task: -ESRCH when it is not
+ * running, -EINVAL when it is not a "notify" service
+ */
+
+int init_service_ready(FAR struct service_s *service);
+
 int init_service_check(FAR const struct parser_s *parser);
 
 #ifdef CONFIG_SYSTEM_NXINIT_DEBUG
