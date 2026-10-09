@@ -299,9 +299,7 @@ int init_control_init(FAR struct init_poller_s *ctx)
   fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (fd < 0)
     {
-      int err = errno;
-
-      init_err("Control socket %d", err);
+      init_err("Control socket %d", errno);
       return 0;
     }
 
@@ -314,9 +312,7 @@ int init_control_init(FAR struct init_poller_s *ctx)
   if (bind(fd, (FAR struct sockaddr *)&addr, sizeof(addr)) < 0 ||
       listen(fd, CONTROL_CLIENTS) < 0)
     {
-      int err = errno;
-
-      init_err("Control socket %s: %d", addr.sun_path, err);
+      init_err("Control socket %s: %d", addr.sun_path, errno);
       close(fd);
       return 0;
     }
