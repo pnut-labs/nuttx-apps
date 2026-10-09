@@ -143,6 +143,12 @@ FAR struct service_s *
 init_service_find_by_pid(FAR struct service_manager_s *sm, const int pid);
 int init_service_parse(FAR const struct parser_s *parser,
                        bool create, FAR char *buf);
+
+/* A service's state, as the control socket names it: ready, stopping,
+ * restarting or stopped
+ */
+
+FAR const char *init_service_state(FAR struct service_s *service);
 int init_service_check(FAR const struct parser_s *parser);
 
 #ifdef CONFIG_SYSTEM_NXINIT_DEBUG

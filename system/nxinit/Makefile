@@ -37,6 +37,17 @@ PRIORITY += $(CONFIG_SYSTEM_NXINIT_PRIORITY)
 STACKSIZE += $(CONFIG_SYSTEM_NXINIT_STACKSIZE)
 MODULE = $(CONFIG_SYSTEM_NXINIT)
 
+ifneq ($(CONFIG_SYSTEM_NXINIT_CONTROL),)
+CSRCS += control.c
+
+ifneq ($(CONFIG_SYSTEM_NXINIT_SVC),)
+MAINSRC += svc.c
+PROGNAME += svc
+PRIORITY += SCHED_PRIORITY_DEFAULT
+STACKSIZE += $(CONFIG_DEFAULT_TASK_STACKSIZE)
+endif
+endif
+
 # NxInit unit tests (cmocka), reusing the same parser/action/service CSRCS
 # built above.
 
@@ -45,6 +56,9 @@ CSRCS += test/test_nxinit_common.c
 CSRCS += test/test_nxinit_parser.c
 CSRCS += test/test_nxinit_action.c
 CSRCS += test/test_nxinit_service.c
+ifneq ($(CONFIG_SYSTEM_NXINIT_CONTROL),)
+CSRCS += test/test_nxinit_control.c
+endif
 MAINSRC += test/test_nxinit.c
 
 PROGNAME += nxinit_unit_test

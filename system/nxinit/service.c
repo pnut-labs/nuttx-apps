@@ -38,6 +38,7 @@
 #include <sys/param.h>
 #include <unistd.h>
 
+#include "control.h"
 #include "init.h"
 #include "parser.h"
 #include "service.h"
@@ -410,6 +411,16 @@ int init_service_refresh(FAR struct service_manager_s *sm)
   return min;
 }
 
+FAR const char *init_service_state(FAR struct service_s *service)
+{
+  if (check_flags(service, SVC_RUNNING))
+    {
+      return check_flags(service, SVC_DISABLED) ? "stopping" : "ready";
+    }
+
+  return check_flags(service, SVC_RESTARTING) ? "restarting" : "stopped";
+}
+
 FAR struct service_s *
 init_service_find_by_name(FAR struct service_manager_s *sm,
                           FAR const char *name)
@@ -476,6 +487,8 @@ void init_service_reap(FAR struct service_s *service, int status)
     {
       add_flags(service, SVC_RESTARTING);
     }
+
+  init_control_changed(service);
 }
 
 /****************************************************************************
@@ -604,6 +617,7 @@ int init_service_start(FAR struct service_s *service)
   remove_flags(service, SVC_RESTARTING);
   remove_flags(service, SVC_DISABLED);
   init_info("Started service '%s' pid %d", service->argv[1], service->pid);
+  init_control_changed(service);
 
   return service->pid;
 }
@@ -636,8 +650,11 @@ int init_service_stop(FAR struct service_s *service)
     {
       remove_flags(service, SVC_RESTARTING);
       init_info("Service '%s' restart cancelled", service->argv[1]);
+      init_control_changed(service);
       return 0;
     }
+
+  init_control_changed(service);
 
   if (check_flags(service, SVC_GENTLE_KILL))
     {

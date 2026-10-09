@@ -125,6 +125,43 @@ config SYSTEM_NXINIT_CONSOLE_DEV
 		file descriptors of the idle task are set up, as is the case for a USB
 		gadget console.
 
+comment "NXInit Control"
+
+config SYSTEM_NXINIT_CONTROL
+	bool "Control socket"
+	default n
+	depends on NET_LOCAL_STREAM
+	---help---
+		A local stream socket through which programs ask NxInit for the
+		services' states, follow their changes, find which service a task
+		is, and start and stop services.  It speaks a text protocol: one
+		command per line, one answer per command, as control.h describes.
+		The svc command speaks it from the shell.
+
+if SYSTEM_NXINIT_CONTROL
+
+config SYSTEM_NXINIT_CONTROL_PATH
+	string "Control socket's path"
+	default "/var/run/nxinit"
+
+config SYSTEM_NXINIT_CONTROL_CLIENTS
+	int "Connections at once"
+	default 4
+	range 1 16
+	---help---
+		Each takes one of NxInit's poll descriptors, on NxInit's stack
+		with its poller.  One more is answered "too many clients" and
+		closed as soon as it is accepted.
+
+config SYSTEM_NXINIT_SVC
+	bool "svc command"
+	default y
+	---help---
+		svc state [<service>], svc start|stop <service>, svc who <pid> and
+		svc watch, through the control socket.
+
+endif # SYSTEM_NXINIT_CONTROL
+
 comment "NXInit Testing"
 
 config SYSTEM_NXINIT_TEST
