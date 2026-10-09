@@ -46,8 +46,6 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT 200
-
 #define check_flags(s, f) ((s)->flags & (f))
 
 #ifdef CONFIG_SYSTEM_NXINIT_DEBUG
@@ -388,7 +386,7 @@ int init_service_refresh(FAR struct service_manager_s *sm)
 
           clock_timespec_subtract(&cur, &service->time_kill, &diff);
           ms = TIMESPEC2MS(diff);
-          if (ms >= SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT)
+          if (ms >= CONFIG_SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT)
             {
               init_warn("Service '%s' pid %d timeout for gentle kill",
                         service->argv[1], service->pid);
@@ -397,7 +395,8 @@ int init_service_refresh(FAR struct service_manager_s *sm)
               continue;
             }
 
-          min = MIN(min, SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT - ms);
+          min = MIN(min,
+                    CONFIG_SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT - ms);
         }
       else if (check_flags(service, SVC_REMOVE) &&
                check_flags(service, SVC_DISABLED) &&

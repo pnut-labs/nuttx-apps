@@ -111,6 +111,15 @@ config SYSTEM_NXINIT_SERVICE_RESTART_PERIOD
 	int "Service restart period in ms"
 	default 5000
 
+config SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT
+	int "Gentle kill timeout in ms"
+	default 200
+	range 1 60000
+	---help---
+		How long a service with the option "gentle_kill" has to exit after
+		it is sent SIGTERM, before it is sent SIGKILL. A service that
+		saves its state as it stops needs as long as that takes.
+
 config SYSTEM_NXINIT_CONSOLE_DEV
 	string "Default console device of a service"
 	default "/dev/console"
