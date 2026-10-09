@@ -29,6 +29,7 @@
 
 #include <errno.h>
 #include <setjmp.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -309,6 +310,92 @@ void test_nxinit_service_console_option(FAR void **state)
   assert_null(s->console);
 
   assert_int_equal(init_service_check(&parser), 0);
+
+  service_manager_free_all(&sm);
+}
+
+/****************************************************************************
+ * Name: test_nxinit_service_stop_restarting
+ *
+ * Description:
+ *   A service waiting to restart has exited: stopping it cancels the
+ *   restart and signals nothing, as the pid it had is stale (0, the idle
+ *   task, if its spawn failed).
+ ****************************************************************************/
+
+void test_nxinit_service_stop_restarting(FAR void **state)
+{
+  struct service_manager_s sm;
+  struct parser_s parser =
+    {
+      "service", init_service_parse, init_service_check, &sm
+    };
+
+  char decl[] = "service foo /bin/foo";
+  FAR struct service_s *s;
+  pid_t pid;
+
+  service_manager_init(&sm);
+
+  assert_int_equal(init_service_parse(&parser, true, decl), 0);
+  assert_int_equal(init_service_check(&parser), 0);
+
+  /* A pid no task has: signalling it would fail with ESRCH. */
+
+  for (pid = 30000; kill(pid, 0) == 0; pid++)
+    {
+    }
+
+  s = list_last_entry(&sm.services, struct service_s, node);
+  s->flags = SVC_RESTARTING;
+  s->pid   = pid;
+
+  assert_int_equal(init_service_stop(s), 0);
+  assert_int_equal(s->flags & (SVC_DISABLED | SVC_RESTARTING | SVC_RUNNING),
+                   SVC_DISABLED);
+
+  service_manager_free_all(&sm);
+}
+
+/****************************************************************************
+ * Name: test_nxinit_service_find_by_pid_running
+ *
+ * Description:
+ *   A pid names the running service that has it, not one that had it
+ *   before it exited.
+ ****************************************************************************/
+
+void test_nxinit_service_find_by_pid_running(FAR void **state)
+{
+  struct service_manager_s sm;
+  struct parser_s parser =
+    {
+      "service", init_service_parse, init_service_check, &sm
+    };
+
+  char decl1[] = "service old /bin/old";
+  char decl2[] = "service new /bin/new";
+  FAR struct service_s *s1;
+  FAR struct service_s *s2;
+
+  service_manager_init(&sm);
+
+  assert_int_equal(init_service_parse(&parser, true, decl1), 0);
+  assert_int_equal(init_service_parse(&parser, true, decl2), 0);
+  assert_int_equal(init_service_check(&parser), 0);
+
+  s1 = list_first_entry(&sm.services, struct service_s, node);
+  s2 = list_last_entry(&sm.services, struct service_s, node);
+
+  s1->flags = SVC_RESTARTING;
+  s1->pid   = 7;
+  s2->flags = SVC_RUNNING;
+  s2->pid   = 7;
+
+  assert_ptr_equal(init_service_find_by_pid(&sm, 7), s2);
+
+  s2->flags = SVC_RESTARTING;
+  assert_null(init_service_find_by_pid(&sm, 7));
 
   service_manager_free_all(&sm);
 }
