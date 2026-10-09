@@ -92,7 +92,8 @@ typedef CODE int (*init_control_emit_t)(FAR void *arg,
  *
  * Description:
  *   The control socket's pollers: the first one initialized listens, the
- *   others carry a connection each.
+ *   others carry a connection each.  A socket that cannot be set up is
+ *   logged, and NxInit goes on without it.
  *
  ****************************************************************************/
 

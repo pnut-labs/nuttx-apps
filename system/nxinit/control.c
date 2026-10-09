@@ -289,11 +289,20 @@ int init_control_init(FAR struct init_poller_s *ctx)
       return 0;
     }
 
+  /* The first poller listens.  When the socket cannot be set up, NxInit
+   * goes on without it: neither this poller nor the connections' pollers
+   * get a descriptor, and poll() passes them over
+   */
+
+  g_listener = ctx;
+
   fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (fd < 0)
     {
-      init_err("Control socket %d", errno);
-      return -errno;
+      int err = errno;
+
+      init_err("Control socket %d", err);
+      return 0;
     }
 
   memset(&addr, 0, sizeof(addr));
@@ -309,11 +318,10 @@ int init_control_init(FAR struct init_poller_s *ctx)
 
       init_err("Control socket %s: %d", addr.sun_path, err);
       close(fd);
-      return -err;
+      return 0;
     }
 
   ctx->pfd->fd = fd;
-  g_listener   = ctx;
   return 0;
 }
 
@@ -336,16 +344,20 @@ void init_control_handle(FAR struct init_poller_s *ctx)
 
 void init_control_deinit(FAR struct init_poller_s *ctx)
 {
+  if (ctx == g_listener)
+    {
+      if (ctx->pfd->fd >= 0)
+        {
+          unlink(CONFIG_SYSTEM_NXINIT_CONTROL_PATH);
+        }
+
+      g_listener = NULL;
+    }
+
   if (ctx->pfd->fd >= 0)
     {
       close(ctx->pfd->fd);
       ctx->pfd->fd = -1;
-    }
-
-  if (ctx == g_listener)
-    {
-      unlink(CONFIG_SYSTEM_NXINIT_CONTROL_PATH);
-      g_listener = NULL;
     }
 }
 
