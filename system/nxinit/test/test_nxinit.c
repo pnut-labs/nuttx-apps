@@ -59,6 +59,8 @@ int main(int argc, FAR char *argv[])
       cmocka_unit_test(test_nxinit_service_override_replaces_duplicate),
       cmocka_unit_test(test_nxinit_service_args_max_boundary),
       cmocka_unit_test(test_nxinit_service_console_option),
+      cmocka_unit_test(test_nxinit_service_stop_restarting),
+      cmocka_unit_test(test_nxinit_service_find_by_pid_running),
     };
 
   return cmocka_run_group_tests(nxinit_tests, test_nxinit_group_setup,

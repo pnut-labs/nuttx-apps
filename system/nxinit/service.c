@@ -432,9 +432,13 @@ init_service_find_by_pid(FAR struct service_manager_s *sm, const int pid)
 {
   FAR struct service_s *service;
 
+  /* A service that is not running keeps the pid it last had, which is
+   * not its own any more.
+   */
+
   list_for_every_entry(&sm->services, service, struct service_s, node)
     {
-      if (pid == service->pid)
+      if (pid == service->pid && check_flags(service, SVC_RUNNING))
         {
           return service;
         }
@@ -623,9 +627,16 @@ int init_service_stop(FAR struct service_s *service)
     }
 
   add_flags(service, SVC_DISABLED);
+
+  /* A service waiting to restart has exited already, so it is not
+   * signalled: its pid is stale, 0 (the idle task) if it never spawned.
+   */
+
   if (check_flags(service, SVC_RESTARTING))
     {
       remove_flags(service, SVC_RESTARTING);
+      init_info("Service '%s' restart cancelled", service->argv[1]);
+      return 0;
     }
 
   if (check_flags(service, SVC_GENTLE_KILL))
