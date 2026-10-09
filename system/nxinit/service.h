@@ -47,7 +47,8 @@
 #define SVC_CONSOLE     (1 << 4)  /* requires a console as its stdio */
 
 /* This service should be stopped with SIGTERM instead of SIGKILL.
- * Will still be SIGKILLed after timeout period of 200 ms.
+ * Will still be SIGKILLed after a timeout,
+ * CONFIG_SYSTEM_NXINIT_SERVICE_GENTLE_KILL_TIMEOUT ms (200 by default).
  */
 
 #define SVC_GENTLE_KILL (1 << 13)
