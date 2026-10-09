@@ -37,6 +37,7 @@
 
 #include "action.h"
 #include "builtin.h"
+#include "control.h"
 #include "init.h"
 #include "import.h"
 #include "property.h"
@@ -211,7 +212,11 @@ int main(int argc, FAR char *argv[])
       {NULL},
     };
 
-  struct init_poller_s poller[] =
+  /* The properties' poller, then the control socket's: the listener and
+   * one for each connection
+   */
+
+  struct init_poller_s poller[1 + NXINIT_CONTROL_POLLERS] =
     {
       {
         .init = init_property_init,
@@ -236,6 +241,15 @@ int main(int argc, FAR char *argv[])
 
 #ifdef CONFIG_USBDEV_TRACE
   usbtrace_enable(TRACE_BITSET);
+#endif
+
+#ifdef CONFIG_SYSTEM_NXINIT_CONTROL
+  for (i = 1; i < nitems(poller); i++)
+    {
+      poller[i].init   = init_control_init;
+      poller[i].handle = init_control_handle;
+      poller[i].deinit = init_control_deinit;
+    }
 #endif
 
   for (i = 0; i < nitems(poller); i++)
@@ -294,9 +308,14 @@ int main(int argc, FAR char *argv[])
           break;
         }
 
+      /* A hang-up or an error comes without the events asked for: the
+       * poller must hear of it too, or poll() would report it for ever
+       */
+
       for (i = 0; i < nitems(poller); i++)
         {
-          if (poller[i].pfd->revents & poller[i].pfd->events)
+          if (poller[i].pfd->revents &
+              (poller[i].pfd->events | POLLHUP | POLLERR))
             {
               poller[i].handle(&poller[i]);
             }

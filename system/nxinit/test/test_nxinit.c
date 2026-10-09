@@ -24,6 +24,8 @@
  * Included Files
  ****************************************************************************/
 
+#include <nuttx/config.h>
+
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -61,6 +63,11 @@ int main(int argc, FAR char *argv[])
       cmocka_unit_test(test_nxinit_service_console_option),
       cmocka_unit_test(test_nxinit_service_stop_restarting),
       cmocka_unit_test(test_nxinit_service_find_by_pid_running),
+#ifdef CONFIG_SYSTEM_NXINIT_CONTROL
+      cmocka_unit_test(test_nxinit_control_state),
+      cmocka_unit_test(test_nxinit_control_who),
+      cmocka_unit_test(test_nxinit_control_commands),
+#endif
     };
 
   return cmocka_run_group_tests(nxinit_tests, test_nxinit_group_setup,

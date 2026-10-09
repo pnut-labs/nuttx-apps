@@ -26,6 +26,10 @@ if(CONFIG_SYSTEM_NXINIT)
 
   list(APPEND CSRCS property_simple.c)
 
+  if(CONFIG_SYSTEM_NXINIT_CONTROL)
+    list(APPEND CSRCS control.c)
+  endif()
+
   nuttx_add_application(
     MODULE
     ${CONFIG_SYSTEM_NXINIT}
@@ -37,6 +41,20 @@ if(CONFIG_SYSTEM_NXINIT)
     ${CONFIG_SYSTEM_NXINIT_PRIORITY}
     SRCS
     ${CSRCS})
+
+  if(CONFIG_SYSTEM_NXINIT_SVC)
+    nuttx_add_application(
+      MODULE
+      ${CONFIG_SYSTEM_NXINIT}
+      NAME
+      svc
+      STACKSIZE
+      ${CONFIG_DEFAULT_TASK_STACKSIZE}
+      PRIORITY
+      SCHED_PRIORITY_DEFAULT
+      SRCS
+      svc.c)
+  endif()
 
   if(CONFIG_SYSTEM_NXINIT_TEST)
 
@@ -55,6 +73,10 @@ if(CONFIG_SYSTEM_NXINIT)
         test/test_nxinit_parser.c
         test/test_nxinit_action.c
         test/test_nxinit_service.c)
+
+    if(CONFIG_SYSTEM_NXINIT_CONTROL)
+      list(APPEND TEST_SRCS control.c test/test_nxinit_control.c)
+    endif()
 
     nuttx_add_application(
       NAME

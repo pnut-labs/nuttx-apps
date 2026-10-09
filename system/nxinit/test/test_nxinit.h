@@ -81,4 +81,14 @@ void test_nxinit_service_console_option(FAR void **state);
 void test_nxinit_service_stop_restarting(FAR void **state);
 void test_nxinit_service_find_by_pid_running(FAR void **state);
 
+/****************************************************************************
+ * Name: test_nxinit_control_*
+ ****************************************************************************/
+
+#ifdef CONFIG_SYSTEM_NXINIT_CONTROL
+void test_nxinit_control_state(FAR void **state);
+void test_nxinit_control_who(FAR void **state);
+void test_nxinit_control_commands(FAR void **state);
+#endif
+
 #endif /* __APPS_SYSTEM_NXINIT_TEST_TEST_NXINIT_H */
