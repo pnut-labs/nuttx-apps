@@ -265,6 +265,10 @@ int main(int argc, FAR char *argv[])
         }
     }
 
+  /* The services' states are announced as properties, svc.<name>.state */
+
+  init_service_announce(am.prop);
+
   r = init_parse_configs(parser);
   if (r < 0)
     {

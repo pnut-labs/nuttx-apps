@@ -56,6 +56,7 @@ struct control_client_s
 {
   char in[CONTROL_LINE_MAX];      /* A command arriving */
   size_t len;
+  pid_t pid;                      /* The caller, or -1 when not known */
   bool watching;
 };
 
@@ -89,6 +90,7 @@ static void control_close(FAR struct init_poller_s *ctx)
     }
 
   client->len      = 0;
+  client->pid      = -1;
   client->watching = false;
 }
 
@@ -190,6 +192,17 @@ static void control_accept(FAR struct init_poller_s *ctx)
     {
       if (g_clients[i]->pfd->fd < 0)
         {
+#ifdef CONFIG_NET_LOCAL_SCM
+          FAR struct control_client_s *client = g_clients[i]->priv;
+          struct ucred cred;
+          socklen_t len = sizeof(cred);
+
+          if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == 0)
+            {
+              client->pid = cred.pid;
+            }
+#endif
+
           g_clients[i]->pfd->fd = fd;
           snprintf(line, sizeof(line), "nxinit %d", NXINIT_CONTROL_VERSION);
           control_emit(g_clients[i], line);
@@ -244,7 +257,8 @@ static void control_read(FAR struct init_poller_s *ctx)
         }
 
       watch = false;
-      init_control_execute(ctx->sm, client->in, control_emit, ctx, &watch);
+      init_control_execute(ctx->sm, client->pid, client->in, control_emit,
+                           ctx, &watch);
       if (ctx->pfd->fd < 0)
         {
           return;
@@ -375,9 +389,9 @@ void init_control_changed(FAR struct service_s *service)
     }
 }
 
-int init_control_execute(FAR struct service_manager_s *sm, FAR char *line,
-                         init_control_emit_t emit, FAR void *arg,
-                         FAR bool *watchp)
+int init_control_execute(FAR struct service_manager_s *sm, pid_t caller,
+                         FAR char *line, init_control_emit_t emit,
+                         FAR void *arg, FAR bool *watchp)
 {
   FAR struct service_s *service;
   char answer[CONTROL_LINE_MAX];
@@ -423,6 +437,29 @@ int init_control_execute(FAR struct service_manager_s *sm, FAR char *line,
   if (strcmp(argv[0], "watch") == 0 && argc == 1)
     {
       *watchp = true;
+      return emit(arg, "ok");
+    }
+
+  /* Only a service's own task says that it is ready */
+
+  if (strcmp(argv[0], "ready") == 0 && argc == 1)
+    {
+      if (caller <= 0)
+        {
+          return control_error(emit, arg, EPERM, "caller unknown");
+        }
+
+      service = init_service_find_by_pid(sm, caller);
+      ret = service != NULL ? init_service_ready(service) : -ESRCH;
+      if (ret == -EINVAL)
+        {
+          return control_error(emit, arg, EINVAL, "not a notify service");
+        }
+      else if (ret < 0)
+        {
+          return control_error(emit, arg, ESRCH, "not a running service");
+        }
+
       return emit(arg, "ok");
     }
 

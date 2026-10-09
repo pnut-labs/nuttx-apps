@@ -67,6 +67,8 @@ int main(int argc, FAR char *argv[])
       cmocka_unit_test(test_nxinit_control_state),
       cmocka_unit_test(test_nxinit_control_who),
       cmocka_unit_test(test_nxinit_control_commands),
+      cmocka_unit_test(test_nxinit_control_ready),
+      cmocka_unit_test(test_nxinit_control_property),
 #endif
     };
 

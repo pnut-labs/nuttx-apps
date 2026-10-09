@@ -27,6 +27,11 @@
  *   svc stop <service>
  *   svc who <pid>
  *   svc watch
+ *   svc ready
+ *
+ * NxInit takes "ready" only from the task it started for a "notify"
+ * service, so "svc ready" works when svc is that task ("service x svc
+ * ready"), not when a shell or program the service runs starts it.
  */
 
 /****************************************************************************
@@ -109,7 +114,8 @@ static void svc_usage(void)
           "Usage: svc state [<service>]\n"
           "       svc start|stop <service>\n"
           "       svc who <pid>\n"
-          "       svc watch\n");
+          "       svc watch\n"
+          "       svc ready\n");
 }
 
 /****************************************************************************
