@@ -11,7 +11,7 @@ if INTERPRETERS_WAMR
 
 config INTERPRETERS_WAMR_VERSION
 	string "WAMR Version"
-	default "WAMR-2.1.0"
+	default "WAMR-2.4.5"
 	---help---
 		Version WAMR-09-29-2020 and later (include main) supported.
 
@@ -92,6 +92,17 @@ config INTERPRETERS_WAMR_DEBUG_INTERP
 	# Note: It sets up the listening socket with SO_LINGER
 	depends on NET_TCP
 	depends on NET_SOLINGER
+
+config INTERPRETERS_WAMR_INSTRUCTION_METERING
+	bool "Enable instruction metering"
+	default n
+	depends on INTERPRETERS_WAMR_FAST || INTERPRETERS_WAMR_CLASSIC
+	---help---
+		Note: This option only works with WAMR 2.3.1 or later.
+		Let the embedder stop a module instance after a number of
+		instructions: wasm_runtime_set_instruction_count_limit() before a
+		call.  Interpreted code only: AOT functions are not counted.  It
+		costs a little on every instruction.
 
 config INTERPRETERS_WAMR_LOG
 	bool "Enable log"

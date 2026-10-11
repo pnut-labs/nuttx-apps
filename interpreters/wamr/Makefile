@@ -31,6 +31,12 @@ WAMR_URL      = $(WAMR_URL_BASE)/$(WAMR_TARBALL)
 
 -include $(WAMR_UNPACK)/product-mini/platforms/nuttx/wamr.mk
 
+# Instruction metering, which WAMR's wamr.mk does not offer yet
+
+ifeq ($(CONFIG_INTERPRETERS_WAMR_INSTRUCTION_METERING),y)
+CFLAGS += -DWASM_ENABLE_INSTRUCTION_METERING=1
+endif
+
 VPATH += $(WAMR_UNPACK)/product-mini/platforms/nuttx
 DEPPATH += --dep-path $(WAMR_UNPACK)/product-mini/platforms/nuttx
 
