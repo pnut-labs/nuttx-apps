@@ -115,7 +115,7 @@ static void lora_usage(FAR const char *progname)
          "  -n <n>      rx: stop after n packets (default 0, no limit)\n"
          "  -t <s>      rx: stop after s seconds (default 60, 0 = never)\n"
          "  -x          rx: print payloads in hex; tx: the payload is\n"
-         "              given in hex\n"
+         "              given in hex, its words joined\n"
          "\n"
          "Mind the duty cycle limits of the band: 869.4-869.65 MHz\n"
          "allows up to 27 dBm ERP at 10%%, most of the rest of 863-870 MHz\n"
@@ -193,27 +193,33 @@ static int lora_tx(int fd, FAR const struct lora_options_s *opt,
 
   if (opt->hex)
     {
-      FAR const char *hex = argv[0];
+      FAR const char *hex;
       char pair[3];
 
-      /* Two hex digits a byte, nothing else */
+      /* Two hex digits a byte, nothing else; the words are joined, so
+       * "de ad be ef" is "deadbeef"
+       */
 
-      while (isxdigit((unsigned char)hex[0]) &&
-             isxdigit((unsigned char)hex[1]) && len < LORA_MAX_PAYLOAD)
+      for (i = 0; i < argc; i++)
         {
-          pair[0] = hex[0];
-          pair[1] = hex[1];
-          pair[2] = '\0';
-          payload[len++] = (char)strtoul(pair, NULL, 16);
-          hex += 2;
-        }
+          hex = argv[i];
+          while (isxdigit((unsigned char)hex[0]) &&
+                 isxdigit((unsigned char)hex[1]) && len < LORA_MAX_PAYLOAD)
+            {
+              pair[0] = hex[0];
+              pair[1] = hex[1];
+              pair[2] = '\0';
+              payload[len++] = (char)strtoul(pair, NULL, 16);
+              hex += 2;
+            }
 
-      if (hex[0] != '\0')
-        {
-          fprintf(stderr, len < LORA_MAX_PAYLOAD ?
-                  "ERROR: bad hex payload\n" :
-                  "ERROR: more than 255 bytes\n");
-          return -1;
+          if (hex[0] != '\0')
+            {
+              fprintf(stderr, len < LORA_MAX_PAYLOAD ?
+                      "ERROR: bad hex payload\n" :
+                      "ERROR: more than 255 bytes\n");
+              return -1;
+            }
         }
     }
   else
