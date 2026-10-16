@@ -72,7 +72,7 @@ static void gnss_usage(FAR const char *progname)
          "  -n <n>  print n fixes, one a second\n"
          "          (default 1, 0 = until -t)\n"
          "  -s      set the system clock from\n"
-         "          the first fix\n",
+         "          the first fix with a time\n",
          progname);
 }
 
@@ -142,14 +142,17 @@ static void gnss_print_fix(FAR const struct sensor_gnss *fix)
     }
 }
 
-static void gnss_set_clock(FAR const struct sensor_gnss *fix)
+/* Set the system clock from a fix, if it carries a time: true once it is
+ * done, or failed for good
+ */
+
+static bool gnss_set_clock(FAR const struct sensor_gnss *fix)
 {
   struct timespec ts;
 
   if (fix->time_utc == 0)
     {
-      fprintf(stderr, "ERROR: no time in the fix yet\n");
-      return;
+      return false;
     }
 
   ts.tv_sec  = (time_t)fix->time_utc;
@@ -163,6 +166,8 @@ static void gnss_set_clock(FAR const struct sensor_gnss *fix)
     {
       printf("System clock set\n");
     }
+
+  return true;
 }
 
 /****************************************************************************
@@ -179,6 +184,7 @@ int main(int argc, FAR char *argv[])
   uint32_t lastreport = 0;
   uint32_t elapsed = 0;
   bool settime = false;
+  bool clockset = false;
   bool bad = false;
   FAR char *end;
   int timeout = 300;
@@ -230,7 +236,10 @@ int main(int argc, FAR char *argv[])
   printf("Waiting up to %d s for a fix\n", timeout);
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  while (elapsed < (uint32_t)timeout && (count == 0 || fixes < count))
+  /* With -s, until the clock is set as well */
+
+  while (elapsed < (uint32_t)timeout &&
+         (count == 0 || fixes < count || (settime && !clockset)))
     {
       fds[0].events = POLLIN;
       fds[1].events = POLLIN;
@@ -255,13 +264,17 @@ int main(int argc, FAR char *argv[])
                 {
                   printf("Fix after %" PRIu32 " s\n",
                          gnss_seconds_since(&start));
-                  if (settime)
-                    {
-                      gnss_set_clock(&fix);
-                    }
                 }
 
-              gnss_print_fix(&fix);
+              if (settime && !clockset)
+                {
+                  clockset = gnss_set_clock(&fix);
+                }
+
+              if (count == 0 || fixes <= count)
+                {
+                  gnss_print_fix(&fix);
+                }
             }
         }
 
@@ -277,6 +290,10 @@ int main(int argc, FAR char *argv[])
     {
       printf("No fix after %d s\n", timeout);
     }
+  else if (settime && !clockset)
+    {
+      fprintf(stderr, "ERROR: no fix carried a time; clock not set\n");
+    }
 
 out:
   if (fds[0].fd >= 0)
@@ -289,5 +306,5 @@ out:
       orb_unsubscribe(fds[1].fd);
     }
 
-  return fixes > 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+  return fixes > 0 && (!settime || clockset) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
