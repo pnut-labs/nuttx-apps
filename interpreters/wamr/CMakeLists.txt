@@ -56,6 +56,15 @@ if(CONFIG_INTERPRETERS_WAMR)
              ${CMAKE_CURRENT_SOURCE_DIR}/wamr/core/iwasm/include)
 
   include(${WAMR_DIR}/product-mini/platforms/nuttx/CMakeLists.txt)
+
+  # Instruction metering, which WAMR's CMakeLists.txt for NuttX does not
+  # offer yet
+
+  if(CONFIG_INTERPRETERS_WAMR_INSTRUCTION_METERING)
+    list(APPEND WAMR_DEFINITIONS WASM_ENABLE_INSTRUCTION_METERING=1)
+    target_compile_definitions(wamr
+                               PRIVATE WASM_ENABLE_INSTRUCTION_METERING=1)
+  endif()
   target_sources(wamr PRIVATE ${WAMR_SOURCES})
   target_compile_options(wamr PRIVATE ${WAMR_CFLAGS})
   # the WAMR_INCDIRS and WAMR_DEFINITIONS already exist in the directory domain
