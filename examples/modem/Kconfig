@@ -10,10 +10,11 @@ config EXAMPLES_MODEM
 	---help---
 		A small command for a cellular modem on a serial port that speaks
 		3GPP AT commands (27.007/27.005): power it up and down through two
-		GPIO devices (supply and PWRKEY), send AT commands, show its
-		identity, SIM, signal and network registration, send and read SMS,
-		and pass the console through to it.  Written for the SIMCom
-		A7682E on the LilyGo T-Deck Max.
+		GPIO devices (supply and PWRKEY), wake it through a third (DTR)
+		while it runs, send AT commands, show its identity, SIM, signal
+		and network registration, send and read SMS, and pass the console
+		through to it.  Written for the SIMCom A7682E on the LilyGo T-Deck
+		Max.
 
 if EXAMPLES_MODEM
 
@@ -45,5 +46,21 @@ config EXAMPLES_MODEM_PWRKEY
 	default "/dev/modem_pwrkey"
 	---help---
 		Writing 1 presses the key (pulls the modem's PWRKEY low).
+
+config EXAMPLES_MODEM_DTR
+	string "GPIO device for the modem's DTR"
+	default "/dev/modem_dtr"
+	---help---
+		Driven low while the command runs, and put back after: a modem
+		told to sleep (AT+CSCLK=1) sleeps while DTR is high, and answers
+		nothing.  Empty, or a device that does not exist, for none.
+
+config EXAMPLES_MODEM_AWAKE
+	string "Device that keeps the system awake"
+	default "/dev/awake"
+	---help---
+		Held open while the command runs, so that the system does not
+		sleep while the modem is spoken to: a UART stops in light sleep
+		on some chips.  Empty, or a device that does not exist, for none.
 
 endif

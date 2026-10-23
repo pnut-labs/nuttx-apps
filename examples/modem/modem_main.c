@@ -54,6 +54,7 @@
 #define MODEM_CTRL_Z        0x1a   /* Ends the text of an SMS */
 #define MODEM_ESC           0x1b   /* Abandons the text of an SMS */
 #define MODEM_TERM_EXIT     0x1d   /* Ctrl-] leaves the terminal */
+#define MODEM_DTR_WAKE_MS   100    /* From DTR low to a modem that answers */
 
 /****************************************************************************
  * Private Types
@@ -149,6 +150,50 @@ static int modem_gpio(FAR const char *path, int value)
 
   close(fd);
   return ret < 0 ? ret : value;
+}
+
+/* Keep the modem awake for commands while the command runs: a modem told
+ * to sleep (AT+CSCLK=1) sleeps while DTR is high, and answers nothing.
+ * The A7682E misses a fall of DTR that comes while it is still falling
+ * asleep, about a second after DTR went high: run the command again.
+ * Returns DTR's level before, to put back, or -1 without a DTR device.
+ */
+
+static int modem_dtr_low(void)
+{
+  bool level = false;
+  int ret;
+  int fd;
+
+  if (CONFIG_EXAMPLES_MODEM_DTR[0] == '\0')
+    {
+      return -1;
+    }
+
+  fd = open(CONFIG_EXAMPLES_MODEM_DTR, O_RDWR);
+  if (fd < 0)
+    {
+      return -1;
+    }
+
+  ret = ioctl(fd, GPIOC_READ, (unsigned long)((uintptr_t)&level));
+  if (ret >= 0)
+    {
+      ret = ioctl(fd, GPIOC_WRITE, 0ul);
+    }
+
+  close(fd);
+  if (ret < 0)
+    {
+      return -1;
+    }
+
+  if (level)
+    {
+      modem_sleep_ms(MODEM_DTR_WAKE_MS);
+    }
+
+  return level;
 }
 
 /* The supply's state: 1 on, 0 off, or a negated errno value if it cannot
@@ -988,6 +1033,8 @@ int main(int argc, FAR char *argv[])
   FAR const char *cmd;
   FAR char *end;
   long secs;
+  int awake = -1;
+  int dtr;
   int ret;
   int ch;
 
@@ -1034,12 +1081,22 @@ int main(int argc, FAR char *argv[])
         }
     }
 
+  /* The system stays awake, and the modem too, while they talk */
+
+  if (CONFIG_EXAMPLES_MODEM_AWAKE[0] != '\0')
+    {
+      awake = open(CONFIG_EXAMPLES_MODEM_AWAKE, O_RDONLY);
+    }
+
+  dtr = modem_dtr_low();
+
   modem.fd = open(CONFIG_EXAMPLES_MODEM_TTY, O_RDWR);
   if (modem.fd < 0)
     {
       fprintf(stderr, "ERROR: cannot open %s: %d\n",
               CONFIG_EXAMPLES_MODEM_TTY, errno);
-      return EXIT_FAILURE;
+      ret = -ENODEV;
+      goto out;
     }
 
   if (strcmp(cmd, "on") == 0)
@@ -1081,5 +1138,17 @@ int main(int argc, FAR char *argv[])
     }
 
   close(modem.fd);
+
+out:
+  if (dtr > 0)
+    {
+      modem_gpio(CONFIG_EXAMPLES_MODEM_DTR, 1);
+    }
+
+  if (awake >= 0)
+    {
+      close(awake);
+    }
+
   return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
