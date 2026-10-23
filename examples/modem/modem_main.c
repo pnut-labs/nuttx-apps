@@ -1140,7 +1140,12 @@ int main(int argc, FAR char *argv[])
   close(modem.fd);
 
 out:
-  if (dtr > 0)
+
+  /* DTR back high, unless the modem is now off: its level shifter is then
+   * unpowered, and a line driven high would feed it
+   */
+
+  if (dtr > 0 && modem_powered() > 0)
     {
       modem_gpio(CONFIG_EXAMPLES_MODEM_DTR, 1);
     }
