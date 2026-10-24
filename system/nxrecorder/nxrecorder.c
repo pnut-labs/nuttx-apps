@@ -188,6 +188,7 @@ static int nxrecorder_opendevice(FAR struct nxrecorder_s *precorder,
       if (precorder->dev_fd == -1)
         {
           int errcode = errno;
+
           DEBUGASSERT(errcode > 0);
 
           auderr("ERROR: Failed to open %s: %d\n",
@@ -287,7 +288,7 @@ static int nxrecorder_opendevice(FAR struct nxrecorder_s *precorder,
                 }
             }
 
-            close(precorder->dev_fd);
+          close(precorder->dev_fd);
         }
     }
 
@@ -467,6 +468,7 @@ static int nxrecorder_enqueuebuffer(FAR struct nxrecorder_s *precorder,
   if (ret < 0)
     {
       int errcode = errno;
+
       DEBUGASSERT(errcode > 0);
 
       auderr("ERROR: AUDIOIOC_ENQUEUEBUFFER ioctl failed: %d\n", errcode);
@@ -607,9 +609,9 @@ static FAR void *nxrecorder_recordthread(pthread_addr_t pvarg)
            * message after all queued buffers have been returned.
            */
 
-           streaming = false;
-           failed = true;
-           break;
+          streaming = false;
+          failed = true;
+          break;
         }
 #ifdef CONFIG_DEBUG_FEATURES
       else
@@ -815,7 +817,7 @@ err_out:
       if (pbuffers[x] != NULL)
         {
 #ifdef CONFIG_AUDIO_MULTI_SESSION
-         buf_desc.session = precorder->session;
+          buf_desc.session = precorder->session;
 #endif
           buf_desc.u.buffer = pbuffers[x];
           ioctl(precorder->dev_fd, AUDIOIOC_FREEBUFFER,
@@ -1048,6 +1050,7 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
   struct ap_buffer_info_s  buf_info;
   struct audio_caps_s      caps;
   int                      min_channels;
+  bool                     reserved = false;
   int                      ret;
   int                      subfmt = AUDIO_FMT_UNDEF;
   int                      index;
@@ -1143,6 +1146,8 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
       ret = -errno;
       goto err_out;
     }
+
+  reserved = true;
 
   caps.ac_len = sizeof(caps);
   caps.ac_type = AUDIO_TYPE_INPUT;
@@ -1244,6 +1249,7 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
   if (ret != OK)
     {
       auderr("ERROR: Failed to create recordthread: %d\n", ret);
+      ret = -ret;
       goto err_out;
     }
 
@@ -1253,6 +1259,21 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
   return OK;
 
 err_out:
+
+  /* A driver may keep a device reserved after its last close (the ES8311
+   * does): release it, or every recorder after this one finds it busy
+   */
+
+  if (reserved)
+    {
+#ifdef CONFIG_AUDIO_MULTI_SESSION
+      ioctl(precorder->dev_fd, AUDIOIOC_RELEASE,
+            (uintptr_t)precorder->session);
+#else
+      ioctl(precorder->dev_fd, AUDIOIOC_RELEASE, 0);
+#endif
+    }
+
   close(precorder->dev_fd);
   precorder->dev_fd = -1;
 
