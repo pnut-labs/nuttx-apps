@@ -148,9 +148,57 @@ static const struct nxrecorder_enc_ops_s g_enc_ops[] =
   }
 };
 
+/* PCM in a WAV file: what `record` writes to a file named *.wav */
+
+static const struct nxrecorder_enc_ops_s g_wav_ops =
+{
+  AUDIO_FMT_PCM,
+  nxrecorder_write_wav,
+  nxrecorder_write_common,
+  nxrecorder_finish_wav,
+};
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: nxrecorder_iswav
+ *
+ *   Whether a file's name ends in .wav, in any case.
+ *
+ ****************************************************************************/
+
+static bool nxrecorder_iswav(FAR const char *pfilename)
+{
+  size_t len = strlen(pfilename);
+
+  return len > 4 && strcasecmp(pfilename + len - 4, ".wav") == 0;
+}
+
+/****************************************************************************
+ * Name: nxrecorder_closefile
+ *
+ *   Finish the file as its format wants (a WAV header's sizes), and close
+ *   it.
+ *
+ ****************************************************************************/
+
+static void nxrecorder_closefile(FAR struct nxrecorder_s *precorder)
+{
+  if (precorder->ops != NULL && precorder->ops->post_write != NULL)
+    {
+      int ret = precorder->ops->post_write(precorder->fd);
+
+      if (ret < 0)
+        {
+          auderr("ERROR: Failed to finish the file: %d\n", ret);
+        }
+    }
+
+  close(precorder->fd);
+  precorder->fd = -1;
+}
 
 /****************************************************************************
  * Name: nxrecorder_opendevice
@@ -600,8 +648,7 @@ static FAR void *nxrecorder_recordthread(pthread_addr_t pvarg)
            * file so that no further data is written.
            */
 
-          close(precorder->fd);
-          precorder->fd = -1;
+          nxrecorder_closefile(precorder);
 
           /* We are no longer streaming data to the file.  Be we will
            * need to wait for any outstanding buffers to be recovered.  We
@@ -741,8 +788,7 @@ static FAR void *nxrecorder_recordthread(pthread_addr_t pvarg)
                          * Close the file so that no further data is written.
                          */
 
-                        close(precorder->fd);
-                        precorder->fd = -1;
+                        nxrecorder_closefile(precorder);
 
                         /* Stop streaming and wait for buffers to be
                          * returned and to receive the AUDIO_MSG_COMPLETE
@@ -848,8 +894,7 @@ err_out:
 
   if (0 < precorder->fd)
     {
-      close(precorder->fd);                 /* Close the file */
-      precorder->fd = -1;                   /* Clear out the FD */
+      nxrecorder_closefile(precorder);      /* Finish and close the file */
     }
 
   close(precorder->dev_fd);                 /* Close the device */
@@ -1054,6 +1099,7 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
   int                      ret;
   int                      subfmt = AUDIO_FMT_UNDEF;
   int                      index;
+  bool                     wav = false;
 
   DEBUGASSERT(precorder != NULL);
   DEBUGASSERT(pfilename != NULL);
@@ -1061,6 +1107,25 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
   if (precorder->state != NXRECORDER_STATE_IDLE)
     {
       return -EBUSY;
+    }
+
+  /* The device's defaults for what is left at zero, for a file's header
+   * and the device alike
+   */
+
+  if (nchannels == 0)
+    {
+      nchannels = 2;
+    }
+
+  if (bpsamp == 0)
+    {
+      bpsamp = 16;
+    }
+
+  if (samprate == 0)
+    {
+      samprate = 48000;
     }
 
   audinfo("==============================\n");
@@ -1081,6 +1146,7 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
   if (filefmt == AUDIO_FMT_UNDEF)
     {
       filefmt = nxrecorder_fmtfromext(precorder, pfilename, &subfmt);
+      wav = filefmt == AUDIO_FMT_PCM && nxrecorder_iswav(pfilename);
     }
 
   /* Test if we determined the file format */
@@ -1105,6 +1171,7 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
       goto err_out_nodev;
     }
 
+  precorder->ops = NULL;
   for (index = 0; index < sizeof(g_enc_ops) / sizeof(g_enc_ops[0]); index++)
     {
       if (g_enc_ops[index].format == filefmt)
@@ -1112,6 +1179,15 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
           precorder->ops = &g_enc_ops[index];
           break;
         }
+    }
+
+  /* PCM named *.wav by `record` gets its WAV header; recordraw's stays
+   * raw, whatever its name
+   */
+
+  if (wav)
+    {
+      precorder->ops = &g_wav_ops;
     }
 
   if (!precorder->ops)
@@ -1170,11 +1246,11 @@ int nxrecorder_recordinternal(FAR struct nxrecorder_s *precorder,
 #endif
   cap_desc.caps.ac_len = sizeof(struct audio_caps_s);
   cap_desc.caps.ac_type = AUDIO_TYPE_INPUT;
-  cap_desc.caps.ac_channels = nchannels ? nchannels : 2;
+  cap_desc.caps.ac_channels = nchannels;
   cap_desc.caps.ac_chmap    = chmap;
-  cap_desc.caps.ac_controls.hw[0] = samprate ? samprate : 48000;
+  cap_desc.caps.ac_controls.hw[0] = samprate;
   cap_desc.caps.ac_controls.b[3] = samprate >> 16;
-  cap_desc.caps.ac_controls.b[2]  = bpsamp ? bpsamp : 16;
+  cap_desc.caps.ac_controls.b[2]  = bpsamp;
   cap_desc.caps.ac_subtype        = filefmt;
   ret = ioctl(precorder->dev_fd, AUDIOIOC_CONFIGURE,
               (uintptr_t)&cap_desc);
