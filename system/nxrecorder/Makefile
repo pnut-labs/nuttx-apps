@@ -27,6 +27,7 @@ include $(APPDIR)/Make.defs
 CSRCS     = nxrecorder.c
 CSRCS    += nxrecorder_amr.c
 CSRCS    += nxrecorder_common.c
+CSRCS    += nxrecorder_wav.c
 
 ifneq ($(CONFIG_NXRECORDER_COMMAND_LINE),)
 PROGNAME = nxrecorder

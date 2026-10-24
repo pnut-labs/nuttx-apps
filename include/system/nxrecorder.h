@@ -46,6 +46,10 @@ struct nxrecorder_enc_ops_s
   CODE int (*pre_write)(int fd, uint32_t samplerate,
                         uint8_t chans, uint8_t bps);
   CODE int (*write_data)(int fd, struct ap_buffer_s *apb);
+
+  /* Called as the file is closed, or NULL: a header's sizes, say */
+
+  CODE int (*post_write)(int fd);
 };
 
 /* This structure describes the internal state of the NxRecorder */
@@ -259,6 +263,42 @@ int nxrecorder_resume(FAR struct nxrecorder_s *precorder);
 
 int nxrecorder_write_amr(int fd, uint32_t samplerate,
                          uint8_t chans, uint8_t bps);
+
+/****************************************************************************
+ * Name: nxrecorder_write_wav
+ *
+ *   Writes a WAV file's header, its sizes left at zero until
+ *   nxrecorder_finish_wav() fills them in.
+ *
+ * Input Parameters:
+ *   fd         - recording file descriptor
+ *   samplerate - sample rate
+ *   chans      - channels num
+ *   bps        - bit width
+ *
+ * Returned Value:
+ *   OK if the header was written; a negated errno value otherwise.
+ *
+ ****************************************************************************/
+
+int nxrecorder_write_wav(int fd, uint32_t samplerate,
+                         uint8_t chans, uint8_t bps);
+
+/****************************************************************************
+ * Name: nxrecorder_finish_wav
+ *
+ *   Fills in a WAV file's sizes, from the file's own size, once the
+ *   recording has ended.
+ *
+ * Input Parameters:
+ *   fd     - recording file descriptor
+ *
+ * Returned Value:
+ *   OK if the sizes were written; a negated errno value otherwise.
+ *
+ ****************************************************************************/
+
+int nxrecorder_finish_wav(int fd);
 
 /****************************************************************************
  * Name: nxrecorder_write_common

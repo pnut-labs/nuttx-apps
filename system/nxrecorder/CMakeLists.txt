@@ -27,7 +27,8 @@ if(CONFIG_SYSTEM_NXRECORDER)
   endif()
   target_sources(apps PRIVATE nxrecorder.c)
 
-  set(CSRCS nxrecorder.c nxrecorder_common.c nxrecorder_amr.c)
+  set(CSRCS nxrecorder.c nxrecorder_common.c nxrecorder_amr.c
+            nxrecorder_wav.c)
 
   target_sources(apps PRIVATE ${CSRCS})
 endif()
