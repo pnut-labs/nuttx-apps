@@ -213,7 +213,7 @@ static const struct cmdmap_s g_cmdmap[] =
 #endif
 
 #if defined(CONFIG_SYSLOG_DEVPATH) && !defined(CONFIG_NSH_DISABLE_DMESG)
-  CMD_MAP("dmesg",    cmd_dmesg,    1, 2, "[-c,--clear |-C,--read-clear]"),
+  CMD_MAP("dmesg",    cmd_dmesg,    1, 2, "[-c|-C]"),
 #endif
 
 #ifndef CONFIG_NSH_DISABLE_ECHO
