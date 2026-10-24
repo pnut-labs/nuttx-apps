@@ -557,6 +557,16 @@ int main(int argc, FAR char *argv[])
                   continue;
                 }
 
+              /* After the last token strtok_r() may leave arg NULL (the
+               * ESP32-S3 ROM's newlib does); the commands expect an empty
+               * argument instead.
+               */
+
+              if (arg == NULL)
+                {
+                  arg = cmd + strlen(cmd);
+                }
+
               /* Find the command in our cmd array */
 
               for (x = 0; x < g_nxlooper_cmd_count; x++)
