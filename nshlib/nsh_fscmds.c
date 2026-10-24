@@ -52,6 +52,9 @@
 #ifdef CONFIG_LIBC_GROUP_FILE
 #  include <grp.h>
 #endif
+#if defined(CONFIG_SYSLOG_DEVPATH) && !defined(CONFIG_NSH_DISABLE_DMESG)
+#  include <nuttx/syslog/syslog.h>
+#endif
 
 #include "nsh.h"
 
@@ -1044,7 +1047,7 @@ int cmd_dmesg(FAR struct nsh_vtbl_s *vtbl, int argc, FAR char **argv)
   int fd;
   int option;
 
-  if (argc > 1 && (option = getopt(argc, argv, "cC:")) != ERROR)
+  if (argc > 1 && (option = getopt(argc, argv, "cC")) != ERROR)
     {
       switch (option)
         {
@@ -1061,7 +1064,7 @@ int cmd_dmesg(FAR struct nsh_vtbl_s *vtbl, int argc, FAR char **argv)
                 return fd;
               }
 
-            ret = ioctl(fd, BIOC_FLUSH, 0);
+            ret = ioctl(fd, SYSLOGIOC_CLEAR, 0);
             if (ret < 0)
               {
                 nsh_error(vtbl, g_fmtcmdfailed, argv[0], "ioctl", NSH_ERRNO);
