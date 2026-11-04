@@ -101,6 +101,11 @@ ${BUILDDIR}/sqlite3.c:
 	echo "Generate SQLite amalgamation version" && \
 	${SQLITEDIR}/sqlite/configure 1> /dev/null && \
 	make sqlite3.c shell.c -j 1> /dev/null
+
+# shell.c too, where an earlier build generated sqlite3.c alone
+
+${BUILDDIR}/shell.c: ${BUILDDIR}/sqlite3.c
+	$(Q) cd ${BUILDDIR} && make shell.c 1> /dev/null && touch shell.c
 else
 
 # A stamp named after the version, so that another version is fetched
@@ -109,7 +114,7 @@ else
 
 SQLITE_STAMP = ${BUILDDIR}/.$(SQLITE_AMALG)
 
-${BUILDDIR}/sqlite3.c: $(SQLITE_STAMP)
+${BUILDDIR}/sqlite3.c ${BUILDDIR}/shell.c: $(SQLITE_STAMP)
 
 $(SQLITE_STAMP):
 	$(if $(and $(SQLITE_YEAR),$(SQLITE_SHA256)),,$(error \
@@ -130,7 +135,7 @@ $(SQLITE_STAMP):
 	  ${BUILDDIR}/sqlite3ext.h ${BUILDDIR}/shell.c
 endif
 
-context:: ${BUILDDIR}/sqlite3.c
+context:: ${BUILDDIR}/sqlite3.c $(if $(CONFIG_UTILS_SQLITE),${BUILDDIR}/shell.c)
 
 clean::
 	$(call DELFILE, ${BUILDDIR}/*.o)
