@@ -5,14 +5,45 @@
 
 config LIB_SQLITE
 	bool "SQLITE library"
-	depends on CONFIG_FS_LOCK_BUCKET_SIZE > 0
+	depends on FS_LOCK_BUCKET_SIZE > 0 && FS_LINKS
 	default n
+	---help---
+		SQLite locks its files (FS_LOCK_BUCKET_SIZE) and resolves
+		their names with readlink(), which needs FS_LINKS.
 
 if LIB_SQLITE
 
 config LIB_SQLITE_VERSION
 	string "SQLITE version"
 	default "3.45.1"
+
+config LIB_SQLITE_YEAR
+	string "SQLITE release year"
+	default "2024"
+	---help---
+		The year of the version's release: sqlite.org keeps its
+		amalgamations under it (www.sqlite.org/<year>/).  Used when
+		there is no git checkout in sqlite/.
+
+config LIB_SQLITE_SHA256
+	string "SQLITE amalgamation SHA-256"
+	default "5592243caf28b2cdef41e6ab58d25d653dfc53deded8450eb66072c929f030c4"
+	---help---
+		Checked before sqlite.org's amalgamation is unpacked: change it
+		with the version and year.
+
+config LIB_SQLITE_SMALL
+	bool "Leave out rarely used parts"
+	default n
+	---help---
+		Build without deprecated and shared-cache interfaces, JSON,
+		WAL, UTF-16, memory-mapped I/O, declared types, the progress
+		and trace callbacks, and the memory statistics, and keep
+		temporary tables in memory.  Strings in double quotes are not
+		taken as names (SQLITE_DQS=0), LIKE never matches a BLOB, and
+		sqlite3_get_table() and Tcl variables are left out, and
+		sqlite3_complete() unless the shell (UTILS_SQLITE) is built.
+		Saves flash on small systems.
 
 config UTILS_SQLITE
 	tristate "SQLite cmd line tool"
