@@ -36,7 +36,14 @@ ADB_DIR := $(APPDIR)/system/adb
 ADB_UNPACKNAME := microADB
 ADB_UNPACKDIR := $(ADB_DIR)/$(ADB_UNPACKNAME)
 
-$(ADB_UNPACKDIR):
+# The patches, by name; the tree is fetched again whenever one changes, or
+# the version does: its stamp names the version
+
+ADB_PATCHES := $(ADB_DIR)/0001-microadb-check-key-signatures.patch \
+               $(ADB_DIR)/0002-microadb-stop-on-sigterm.patch
+ADB_STAMP := $(ADB_UNPACKDIR)/.pinned-$(ADB_VERSION)
+
+$(ADB_STAMP): $(ADB_PATCHES)
 	@echo "Downloading: $(ADB_UNPACKNAME)"
 	$(Q) curl -O -L -f --retry 3 $(ADB_URL)/$(ADB_VERSION).zip
 	$(Q) $(NXTOOLSDIR)/check-hash.sh sha256 $(ADB_SHA256) $(ADB_VERSION).zip
@@ -44,10 +51,12 @@ $(ADB_UNPACKDIR):
 	$(Q) unzip -o $(ADB_VERSION).zip
 	$(call DELFILE, $(ADB_VERSION).zip)
 	$(Q) cd $(ADB_UNPACKNAME)-$(ADB_VERSION) && \
-	     for p in $(sort $(wildcard $(ADB_DIR)/*.patch)); do \
+	     for p in $(ADB_PATCHES); do \
 	       patch -p1 < $$p || exit 1; \
 	     done
+	$(call DELDIR, $(ADB_UNPACKDIR))
 	$(call MOVEFILE, $(ADB_UNPACKNAME)-$(ADB_VERSION), $(ADB_UNPACKDIR))
+	$(Q) touch $@
 
 # adb server app
 
@@ -104,12 +113,16 @@ endif
 clean::
 	$(call DELFILE, $(OBJS))
 
-# Download and unpack tarball if no git repo found
+# Download and unpack tarball if no git repo found; a git checkout is used
+# only once patched and stamped by hand
 ifeq ($(wildcard $(ADB_UNPACKDIR)/.git),)
-context:: $(ADB_UNPACKDIR)
+context:: $(ADB_STAMP)
 
 distclean::
 	$(call DELDIR, $(ADB_UNPACKDIR))
+else ifeq ($(wildcard $(ADB_STAMP)),)
+$(error system/adb/microADB is a git checkout without $(notdir $(ADB_STAMP)): \
+  apply $(notdir $(ADB_PATCHES)) and create it, or remove the checkout)
 endif
 
 include $(APPDIR)/Application.mk

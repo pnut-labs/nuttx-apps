@@ -22,16 +22,25 @@
 
 if(CONFIG_SYSTEM_ADBD)
 
+  # One commit, never master, and its archive checked: another version
+  # comes with its own hash
+  if(NOT ADBD_VERSION)
+    set(ADBD_VERSION "85cc7a90101b2ae76ee4112ba285141c8fba5012")
+  endif()
+
+  # A tree fetched before, of another version or without the patches, is
+  # never used: it is removed by hand
+  set(ADBD_STAMP ${CMAKE_CURRENT_LIST_DIR}/microADB/.pinned-${ADBD_VERSION})
+  if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/microADB AND NOT EXISTS ${ADBD_STAMP})
+    message(
+      FATAL_ERROR "system/adb/microADB is not the pinned, patched version: "
+                  "remove it to fetch ${ADBD_VERSION}")
+  endif()
+
   if(NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/microADB)
 
     if(NOT ADBD_URL)
       set(ADBD_URL "https://github.com/spiriou/microADB/archive")
-    endif()
-
-    # One commit, never master, and its archive checked: another version
-    # comes with its own hash
-    if(NOT ADBD_VERSION)
-      set(ADBD_VERSION "85cc7a90101b2ae76ee4112ba285141c8fba5012")
     endif()
 
     if(NOT ADBD_SHA256)
@@ -57,6 +66,7 @@ if(CONFIG_SYSTEM_ADBD)
 
     if(NOT microADB_POPULATED)
       FetchContent_Populate(microADB)
+      file(TOUCH ${ADBD_STAMP})
     endif()
   endif()
 

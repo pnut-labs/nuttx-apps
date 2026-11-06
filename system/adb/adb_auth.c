@@ -420,6 +420,24 @@ static int adb_auth_fingerprint(const char *key, char *out)
 }
 #endif
 
+/* A key line's comment, after its first space, to its end: printable
+ * characters alone, others shown as '?', cut to size
+ */
+
+static void adb_auth_comment(const char *line, char *out, size_t size)
+{
+  const char *c = strchr(line, ' ');
+  size_t n = 0;
+
+  for (c = c != NULL ? c + 1 : ""; *c != '\0' && *c != '\n' &&
+       *c != '\r' && n + 1 < size; c++)
+    {
+      out[n++] = *c >= 0x20 && *c <= 0x7e ? *c : '?';
+    }
+
+  out[n] = '\0';
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -427,6 +445,7 @@ static int adb_auth_fingerprint(const char *key, char *out)
 int adb_auth_verify(const uint8_t *token, size_t tokenlen,
                     const uint8_t *sig, size_t siglen)
 {
+  char comment[64];
   struct adb_rsa_key_s *key;
   char *line;
   FILE *f;
@@ -440,7 +459,7 @@ int adb_auth_verify(const uint8_t *token, size_t tokenlen,
   f = fopen(CONFIG_ADBD_AUTH_KEYS, "r");
   if (f == NULL)
     {
-      return -ENOENT;
+      return errno != 0 ? -errno : -ENOENT;   /* Never 0: allowed */
     }
 
   key  = malloc(sizeof(*key));
@@ -462,8 +481,8 @@ int adb_auth_verify(const uint8_t *token, size_t tokenlen,
       adb_key_order(key);
       if (adb_rsa_verify(key, token, sig))
         {
-          syslog(LOG_NOTICE, "adbd: host allowed:%s",
-                 strchr(line, ' ') != NULL ? strchr(line, ' ') : "\n");
+          adb_auth_comment(line, comment, sizeof(comment));
+          syslog(LOG_NOTICE, "adbd: host allowed (%s)\n", comment);
           ret = 0;
           break;
         }
