@@ -35,19 +35,42 @@ config ADBD_AUTHENTICATION
 	bool "Authentication support"
 	default n
 	---help---
-		Enable authentication for adb daemon.
+		Enable authentication for adb daemon: a host connects only if it
+		signs a random token with a key listed in ADBD_AUTH_KEYS
+		(adb_auth.c).  The token comes from /dev/urandom, which must be
+		a cryptographic generator (DEV_URANDOM_ARCH on a chip with a
+		hardware one, or the random pool); with no /dev/urandom, adbd
+		refuses every host.
 
 if ADBD_AUTHENTICATION
 
-config ADBD_AUTH_PUBKEY
-	bool "Public key authentication"
-	default n
+config ADBD_AUTH_KEYS
+	string "Allowed keys file"
+	default "/data/adb/adb_keys"
 	---help---
-		Enable hook to accept new public keys.
+		The public keys of the hosts allowed to connect, one per line,
+		as a host's ~/.android/adbkey.pub has it.
+
+config ADBD_AUTH_PUBKEY
+	bool "Keep new hosts' keys"
+	default n
+	select NETUTILS_CODECS
+	select CODECS_HASH_MD5
+	---help---
+		Keep the public key a host with no allowed key offers in
+		ADBD_AUTH_KEYS ".new", beside the others waiting (four at
+		most), for the user to allow by moving its line into
+		ADBD_AUTH_KEYS.  It is never allowed by itself.  Each key is
+		logged with its fingerprint, the MD5 of the key, which the user
+		compares with the computer's before allowing it:
+		cut -d' ' -f1 ~/.android/adbkey.pub | base64 -d | md5sum
 
 config ADBD_TOKEN_SIZE
 	int "Authentication token size"
 	default 20
+	range 20 20
+	---help---
+		A SHA-1 digest's size: hosts sign the token as one.
 
 endif # ADBD_AUTHENTICATION
 

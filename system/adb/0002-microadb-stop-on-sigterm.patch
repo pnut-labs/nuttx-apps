@@ -1,0 +1,108 @@
+microADB: stop on SIGTERM.  Each TCP client is closed as when its host
+leaves, its services and their shells with it; every handle left is
+closed at the loop's next turn, so that adbd exits with its sockets
+released and can listen again when restarted.
+
+--- a/hal/hal_uv.c
++++ b/hal/hal_uv.c
+@@ -15,6 +15,7 @@
+  *
+  */
+ 
++#include <signal.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+@@ -68,11 +69,55 @@
+     free(client);
+ }
+ 
++static void adb_uv_close_handle(uv_handle_t *handle, void *arg) {
++    UNUSED(arg);
++    if (!uv_is_closing(handle)) {
++        uv_close(handle, NULL);
++    }
++}
++
++static uv_timer_t g_adb_stop_timer;
++
++static void adb_uv_on_stop(uv_timer_t *timer) {
++    /* The clients are gone: every handle left closed, so that uv_run()
++     * returns and adbd exits with its sockets released; a restarted adbd
++     * can then listen again.
++     */
++
++    uv_walk(timer->loop, adb_uv_close_handle, NULL);
++}
++
++static void adb_uv_on_sigterm(uv_signal_t *handle, int signum) {
++    adb_context_uv_t *adbd = (adb_context_uv_t*)handle->data;
++
++    /* Asked to stop: first each client closed as when its host leaves,
++     * its services and their shells with it; the rest once that is done,
++     * at the loop's next turn
++     */
++
++    UNUSED(signum);
++    if (uv_is_active((uv_handle_t*)&g_adb_stop_timer)) {
++        return;                     /* Stopping already */
++    }
++
++    adb_log("stopping\n");
++#ifdef CONFIG_ADBD_TCP_SERVER
++    adb_uv_tcp_close_clients(adbd);
++#endif
++    uv_timer_start(&g_adb_stop_timer, adb_uv_on_stop, 0, 0);
++}
++
+ int adb_hal_run(adb_context_t *context) {
+     int ret;
++    uv_signal_t sigterm;
+     adb_context_uv_t *adbd =
+         container_of(context, adb_context_uv_t, context);
+ 
++    uv_timer_init(adbd->loop, &g_adb_stop_timer);
++    uv_signal_init(adbd->loop, &sigterm);
++    sigterm.data = adbd;
++    uv_signal_start(&sigterm, adb_uv_on_sigterm, SIGTERM);
++
+     ret = uv_run(adbd->loop, UV_RUN_DEFAULT);
+     adb_log("uv_loop exit %d\n", ret);
+ 
+--- a/hal/hal_uv_priv.h
++++ b/hal/hal_uv_priv.h
+@@ -75,6 +75,10 @@
+ 
+ #ifdef CONFIG_ADBD_TCP_SERVER
+ int adb_uv_tcp_setup(adb_context_uv_t *adbd);
++
++/* Close every TCP client as when its host leaves (adbd stopping) */
++
++void adb_uv_tcp_close_clients(adb_context_uv_t *adbd);
+ #endif
+ 
+ #ifdef CONFIG_ADBD_USB_SERVER
+--- a/hal/hal_uv_client_tcp.c
++++ b/hal/hal_uv_client_tcp.c
+@@ -158,6 +158,21 @@
+  * Public Functions
+  ****************************************************************************/
+ 
++static void tcp_uv_close_client(uv_handle_t *handle, void *arg) {
++    adb_context_uv_t *adbd = (adb_context_uv_t*)arg;
++
++    /* A client's socket: its data is the server it came through */
++
++    if (handle->type == UV_TCP && handle->data == &adbd->tcp_server &&
++        !uv_is_closing(handle)) {
++        uv_close(handle, tcp_uv_on_close);
++    }
++}
++
++void adb_uv_tcp_close_clients(adb_context_uv_t *adbd) {
++    uv_walk(adbd->loop, tcp_uv_close_client, adbd);
++}
++
+ int adb_uv_tcp_setup(adb_context_uv_t *adbd) {
+     int ret;
+     struct sockaddr_in addr;
