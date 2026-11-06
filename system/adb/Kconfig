@@ -49,7 +49,8 @@ config ADBD_AUTH_KEYS
 	default "/data/adb/adb_keys"
 	---help---
 		The public keys of the hosts allowed to connect, one per line,
-		as a host's ~/.android/adbkey.pub has it.
+		as a host's ~/.android/adbkey.pub has it.  Its folder is made
+		when a key is first kept (ADBD_AUTH_PUBKEY).
 
 config ADBD_AUTH_PUBKEY
 	bool "Keep new hosts' keys"

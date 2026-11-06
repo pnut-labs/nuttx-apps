@@ -391,6 +391,32 @@ static int adb_auth_waiting(const char *key, size_t len)
   return n;
 }
 
+/* The keys' folder made, one level: the file system it is on is mounted,
+ * the folder may not be there yet; 0, or -1 with errno set
+ */
+
+static int adb_auth_mkdir(void)
+{
+  char dir[sizeof(CONFIG_ADBD_AUTH_KEYS)];
+  char *slash;
+
+  strlcpy(dir, CONFIG_ADBD_AUTH_KEYS, sizeof(dir));
+  slash = strrchr(dir, '/');
+  if (slash == NULL || slash == dir)
+    {
+      errno = ENOENT;
+      return -1;
+    }
+
+  *slash = '\0';
+  if (mkdir(dir, 0700) < 0 && errno != EEXIST)
+    {
+      return -1;
+    }
+
+  return 0;
+}
+
 /* A key's fingerprint, as Android shows it: the MD5 of the key decoded,
  * as hex pairs separated by colons, into 49 bytes; false if it is not a
  * key
@@ -584,6 +610,11 @@ void adb_auth_offer(const char *key, size_t len)
     }
 
   f = fopen(ADB_KEYS_NEW, "a");
+  if (f == NULL && errno == ENOENT && adb_auth_mkdir() == 0)
+    {
+      f = fopen(ADB_KEYS_NEW, "a");   /* Its folder made, the first time */
+    }
+
   if (f == NULL)
     {
       syslog(LOG_ERR, "adbd: %s: %d\n", ADB_KEYS_NEW, errno);
