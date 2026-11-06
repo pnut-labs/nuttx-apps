@@ -28,13 +28,22 @@ if(CONFIG_SYSTEM_ADBD)
     set(ADBD_VERSION "85cc7a90101b2ae76ee4112ba285141c8fba5012")
   endif()
 
-  # A tree fetched before, of another version or without the patches, is
-  # never used: it is removed by hand
-  set(ADBD_STAMP ${CMAKE_CURRENT_LIST_DIR}/microADB/.pinned-${ADBD_VERSION})
+  # A tree fetched before, of another version or with other patches, is
+  # never used: it is removed by hand.  The stamp names the version and the
+  # patches' hash.
+  file(READ ${CMAKE_CURRENT_LIST_DIR}/0001-microadb-check-key-signatures.patch
+       ADBD_PATCH1)
+  file(READ ${CMAKE_CURRENT_LIST_DIR}/0002-microadb-stop-on-sigterm.patch
+       ADBD_PATCH2)
+  string(SHA256 ADBD_PATCHES_HASH "${ADBD_PATCH1}${ADBD_PATCH2}")
+  string(SUBSTRING ${ADBD_PATCHES_HASH} 0 12 ADBD_PATCHES_HASH)
+  set(ADBD_STAMP
+      ${CMAKE_CURRENT_LIST_DIR}/microADB/.pinned-${ADBD_VERSION}-${ADBD_PATCHES_HASH}
+  )
   if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/microADB AND NOT EXISTS ${ADBD_STAMP})
     message(
-      FATAL_ERROR "system/adb/microADB is not the pinned, patched version: "
-                  "remove it to fetch ${ADBD_VERSION}")
+      FATAL_ERROR "system/adb/microADB is not the pinned version with these "
+                  "patches: remove it to fetch ${ADBD_VERSION}")
   endif()
 
   if(NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/microADB)
