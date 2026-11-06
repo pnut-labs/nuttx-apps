@@ -10,7 +10,7 @@ filled.  Without the defines, the sizes are libuv's own.
 
 --- a/src/unix/linux.c
 +++ b/src/unix/linux.c
-@@ -52,6 +52,25 @@
+@@ -52,6 +52,29 @@
  #include <time.h>
  #include <unistd.h>
  
@@ -33,10 +33,14 @@ filled.  Without the defines, the sizes are libuv's own.
 +# define UV__EPOLL_PREP 256
 +#endif
 +
++#if UV__EPOLL_EVENTS < 1 || UV__EPOLL_PREP < 1
++# error "MAX_EPOLL_EVENTS and PREP_EVENT_SIZE must be at least 1"
++#endif
++
  #ifdef __linux__
  #ifndef __NR_io_uring_setup
  # define __NR_io_uring_setup 425
-@@ -290,11 +309,11 @@
+@@ -290,11 +313,11 @@
  
  static void uv__epoll_ctl_flush(int epollfd,
                                  struct uv__iou* ctl,
@@ -50,7 +54,7 @@ filled.  Without the defines, the sizes are libuv's own.
                                 int op,
                                 int fd,
                                 struct epoll_event* e);
-@@ -646,7 +665,7 @@
+@@ -646,7 +669,7 @@
  
  
  struct uv__invalidate {
@@ -59,7 +63,7 @@ filled.  Without the defines, the sizes are libuv's own.
    struct epoll_event* events;
    int nfds;
  };
-@@ -1153,7 +1172,7 @@
+@@ -1153,7 +1176,7 @@
  
  static void uv__epoll_ctl_prep(int epollfd,
                                 struct uv__iou* ctl,
@@ -68,7 +72,7 @@ filled.  Without the defines, the sizes are libuv's own.
                                 int op,
                                 int fd,
                                 struct epoll_event* e) {
-@@ -1206,8 +1225,8 @@
+@@ -1206,8 +1229,8 @@
  
  static void uv__epoll_ctl_flush(int epollfd,
                                  struct uv__iou* ctl,
@@ -79,7 +83,7 @@ filled.  Without the defines, the sizes are libuv's own.
    struct uv__io_uring_cqe* cqe;
    uint32_t oldslot;
    uint32_t slot;
-@@ -1274,8 +1293,8 @@
+@@ -1274,8 +1297,8 @@
  
  void uv__io_poll(uv_loop_t* loop, int timeout) {
    uv__loop_internal_fields_t* lfields;
