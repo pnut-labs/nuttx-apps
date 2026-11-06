@@ -54,10 +54,16 @@ config ADBD_AUTH_KEYS
 config ADBD_AUTH_PUBKEY
 	bool "Keep new hosts' keys"
 	default n
+	select NETUTILS_CODECS
+	select CODECS_HASH_MD5
 	---help---
 		Keep the public key a host with no allowed key offers in
-		ADBD_AUTH_KEYS ".new", for the user to allow by adding it to
-		ADBD_AUTH_KEYS.  (It is never allowed by itself.)
+		ADBD_AUTH_KEYS ".new", beside the others waiting (four at
+		most), for the user to allow by moving its line into
+		ADBD_AUTH_KEYS.  It is never allowed by itself.  Each key is
+		logged with its fingerprint, the MD5 of the key, which the user
+		compares with the computer's before allowing it:
+		cut -d' ' -f1 ~/.android/adbkey.pub | base64 -d | md5sum
 
 config ADBD_TOKEN_SIZE
 	int "Authentication token size"

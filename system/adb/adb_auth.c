@@ -55,6 +55,8 @@
 
 #include <endian.h>
 
+#include <netutils/md5.h>
+
 #include "adb.h"
 
 /****************************************************************************
@@ -68,6 +70,7 @@
 #define ADB_SHA1_BYTES  20
 
 #define ADB_KEYS_NEW    CONFIG_ADBD_AUTH_KEYS ".new"
+#define ADB_KEYS_WAIT   4                       /* Keys waiting, at most */
 
 /****************************************************************************
  * Private Types
@@ -347,13 +350,15 @@ static int adb_rsa_verify(const struct adb_rsa_key_s *key,
 }
 
 #ifdef CONFIG_ADBD_AUTH_PUBKEY
-/* Whether ADB_KEYS_NEW holds this key already, as its one line */
+/* The keys waiting in ADB_KEYS_NEW, one a line; -1 if this one is among
+ * them
+ */
 
-static int adb_auth_pending(const char *key, size_t len)
+static int adb_auth_waiting(const char *key, size_t len)
 {
   char *line;
   FILE *f;
-  int same = 0;
+  int n = 0;
 
   f = fopen(ADB_KEYS_NEW, "r");
   if (f == NULL)
@@ -361,16 +366,57 @@ static int adb_auth_pending(const char *key, size_t len)
       return 0;
     }
 
-  line = malloc(len + 3);
-  if (line != NULL && fgets(line, len + 3, f) != NULL)
+  line = malloc(ADB_KEY_B64MAX + 130);
+  while (line != NULL && fgets(line, ADB_KEY_B64MAX + 130, f) != NULL)
     {
-      same = strlen(line) == len + 1 && line[len] == '\n' &&
-             memcmp(line, key, len) == 0;
+      if (strlen(line) == len + 1 && line[len] == '\n' &&
+          memcmp(line, key, len) == 0)
+        {
+          n = -1;
+          break;
+        }
+
+      n++;
     }
 
   free(line);
   fclose(f);
-  return same;
+  return n;
+}
+
+/* A key's fingerprint, as Android shows it: the MD5 of the key decoded,
+ * as hex pairs separated by colons, into 49 bytes; false if it is not a
+ * key
+ */
+
+static int adb_auth_fingerprint(const char *key, char *out)
+{
+  struct adb_rsa_key_s *decoded;
+  uint8_t md5[16];
+  int ok;
+  int i;
+
+  decoded = malloc(sizeof(*decoded) + 1);
+  if (decoded == NULL)
+    {
+      return 0;
+    }
+
+  ok = adb_b64_decode(key, (uint8_t *)decoded, sizeof(*decoded) + 1) ==
+       sizeof(*decoded);
+  if (ok)
+    {
+      md5_sum((const uint8_t *)decoded, sizeof(*decoded), md5);
+      for (i = 0; i < 16; i++)
+        {
+          sprintf(out + 3 * i, "%02x:", md5[i]);
+        }
+
+      out[16 * 3 - 1] = '\0';           /* No colon after the last */
+    }
+
+  free(decoded);
+  return ok;
 }
 #endif
 
@@ -433,8 +479,10 @@ out:
 void adb_auth_offer(const char *key, size_t len)
 {
 #ifdef CONFIG_ADBD_AUTH_PUBKEY
+  char fingerprint[16 * 3 + 1];
   const char *comment;
   char *copy;
+  int waiting;
   size_t i;
   FILE *f;
 
@@ -455,13 +503,14 @@ void adb_auth_offer(const char *key, size_t len)
    * user's name may not be ASCII) has the others shown as '?'
    */
 
-  copy = malloc(len);
+  copy = malloc(len + 1);
   if (copy == NULL)
     {
       return;
     }
 
   memcpy(copy, key, len);
+  copy[len] = '\0';                  /* The decoding stops there at most */
   comment = memchr(copy, ' ', len);
   for (i = 0; i < len; i++)
     {
@@ -479,17 +528,36 @@ void adb_auth_offer(const char *key, size_t len)
 
   key = copy;
 
-  /* The same key again, as each try of the host offers it: not written
-   * again
+  /* Kept beside the others waiting, never over one: a host on the network
+   * could otherwise put its key in place of the owner's just before the
+   * owner allows "the new key".  The owner tells them apart by their
+   * fingerprints (`cut -d' ' -f1 ~/.android/adbkey.pub | base64 -d |
+   * md5sum` on the computer).  The same key again, as each try of the
+   * host offers it, is not written again.
    */
 
-  if (adb_auth_pending(key, len))
+  if (!adb_auth_fingerprint(key, fingerprint))
     {
       free(copy);
       return;
     }
 
-  f = fopen(ADB_KEYS_NEW, "w");
+  waiting = adb_auth_waiting(key, len);
+  if (waiting < 0)
+    {
+      free(copy);
+      return;
+    }
+
+  if (waiting >= ADB_KEYS_WAIT)
+    {
+      syslog(LOG_WARNING, "adbd: %d keys wait in " ADB_KEYS_NEW ": another "
+             "(%s) not kept\n", waiting, fingerprint);
+      free(copy);
+      return;
+    }
+
+  f = fopen(ADB_KEYS_NEW, "a");
   if (f == NULL)
     {
       syslog(LOG_ERR, "adbd: %s: %d\n", ADB_KEYS_NEW, errno);
@@ -502,11 +570,11 @@ void adb_auth_offer(const char *key, size_t len)
   fclose(f);
 
   comment = memchr(key, ' ', len);
-  syslog(LOG_WARNING, "adbd: a new host asks to connect (%.*s): its key "
-         "is in " ADB_KEYS_NEW ", allowed once moved into "
-         CONFIG_ADBD_AUTH_KEYS "\n",
+  syslog(LOG_WARNING, "adbd: a new host asks to connect (%.*s), key "
+         "fingerprint %s: kept in " ADB_KEYS_NEW ", allowed once its line "
+         "is moved into " CONFIG_ADBD_AUTH_KEYS "\n",
          comment != NULL ? (int)(len - (comment + 1 - key)) : 0,
-         comment != NULL ? comment + 1 : "");
+         comment != NULL ? comment + 1 : "", fingerprint);
   free(copy);
 #else
   syslog(LOG_WARNING, "adbd: a host with no allowed key\n");
