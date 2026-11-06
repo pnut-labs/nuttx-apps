@@ -55,7 +55,9 @@
 
 #include <endian.h>
 
-#include <netutils/md5.h>
+#ifdef CONFIG_ADBD_AUTH_PUBKEY
+#  include <netutils/md5.h>
+#endif
 
 #include "adb.h"
 
@@ -165,13 +167,18 @@ static int adb_b64_decode(const char *in, uint8_t *out, size_t size)
 static void adb_rsa_sub_n(const struct adb_rsa_key_s *key, uint32_t *a)
 {
   int64_t borrow = 0;
+  int64_t d;
   int i;
+
+  /* d is within -2^32 .. 2^32 - 1: all signed, nothing left to the
+   * compiler's choice
+   */
 
   for (i = 0; i < ADB_RSA_WORDS; i++)
     {
-      borrow += (uint64_t)a[i] - key->n[i];
-      a[i]    = (uint32_t)borrow;
-      borrow >>= 32;
+      d      = (int64_t)a[i] - (int64_t)key->n[i] + borrow;
+      a[i]   = (uint32_t)d;
+      borrow = d < 0 ? -1 : 0;
     }
 }
 
