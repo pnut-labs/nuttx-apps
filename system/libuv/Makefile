@@ -39,7 +39,9 @@ $(LIBUV_UNPACK): $(LIBUV_TARBALL)
 	$(call DELDIR, $(LIBUV_UNPACK))
 	$(Q) unzip $(LIBUV_TARBALL)
 	$(Q) mv libuv-$(LIBUV_VERSION) $(LIBUV_UNPACK)
-	$(Q) cat $(LIBUV_PATCHS) | patch -s -N -d $(LIBUV_UNPACK) -p1
+	$(Q) for p in $(LIBUV_PATCHS); do \
+	       patch -s -N -d $(LIBUV_UNPACK) -p1 < $$p || exit 1; \
+	     done
 
 $(LIBUV_UNPACK)/.patch: $(LIBUV_UNPACK)
 	$(Q) touch $(LIBUV_UNPACK)/.patch

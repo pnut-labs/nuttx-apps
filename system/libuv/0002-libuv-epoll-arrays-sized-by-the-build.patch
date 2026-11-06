@@ -1,0 +1,92 @@
+libuv on NuttX: uv__io_poll()'s epoll arrays sized by the build.
+
+linux.c keeps 1024 events and 256 io_uring batch entries on the stack, 20
+KB with NuttX's 16-byte epoll_event, which overflows a small task's
+stack into whatever lies below it (adbd's 8 KB stack ran into NxInit's).
+The NuttX build already passes MAX_EPOLL_EVENTS and PREP_EVENT_SIZE
+(CONFIG_LIBUV_MAX_EPOLL_EVENTS, CONFIG_LIBUV_PREP_EVENT_SIZE), which
+this libuv no longer read; without io_uring the batch array is never
+filled.  Without the defines, the sizes are libuv's own.
+
+--- a/src/unix/linux.c
++++ b/src/unix/linux.c
+@@ -52,6 +52,25 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
++/* The epoll arrays uv__io_poll() keeps on its stack: 1024 events and 256
++ * for io_uring's batches, 20 KB, more than a small task's whole stack.
++ * The build may size them (NuttX: CONFIG_LIBUV_MAX_EPOLL_EVENTS and
++ * CONFIG_LIBUV_PREP_EVENT_SIZE); without io_uring, the second is never
++ * filled.
++ */
++
++#ifdef MAX_EPOLL_EVENTS
++# define UV__EPOLL_EVENTS MAX_EPOLL_EVENTS
++#else
++# define UV__EPOLL_EVENTS 1024
++#endif
++
++#ifdef PREP_EVENT_SIZE
++# define UV__EPOLL_PREP PREP_EVENT_SIZE
++#else
++# define UV__EPOLL_PREP 256
++#endif
++
+ #ifdef __linux__
+ #ifndef __NR_io_uring_setup
+ # define __NR_io_uring_setup 425
+@@ -290,11 +309,11 @@
+ 
+ static void uv__epoll_ctl_flush(int epollfd,
+                                 struct uv__iou* ctl,
+-                                struct epoll_event (*events)[256]);
++                                struct epoll_event (*events)[UV__EPOLL_PREP]);
+ 
+ static void uv__epoll_ctl_prep(int epollfd,
+                                struct uv__iou* ctl,
+-                               struct epoll_event (*events)[256],
++                               struct epoll_event (*events)[UV__EPOLL_PREP],
+                                int op,
+                                int fd,
+                                struct epoll_event* e);
+@@ -646,7 +665,7 @@
+ 
+ 
+ struct uv__invalidate {
+-  struct epoll_event (*prep)[256];
++  struct epoll_event (*prep)[UV__EPOLL_PREP];
+   struct epoll_event* events;
+   int nfds;
+ };
+@@ -1153,7 +1172,7 @@
+ 
+ static void uv__epoll_ctl_prep(int epollfd,
+                                struct uv__iou* ctl,
+-                               struct epoll_event (*events)[256],
++                               struct epoll_event (*events)[UV__EPOLL_PREP],
+                                int op,
+                                int fd,
+                                struct epoll_event* e) {
+@@ -1206,8 +1225,8 @@
+ 
+ static void uv__epoll_ctl_flush(int epollfd,
+                                 struct uv__iou* ctl,
+-                                struct epoll_event (*events)[256]) {
+-  struct epoll_event oldevents[256];
++                                struct epoll_event (*events)[UV__EPOLL_PREP]) {
++  struct epoll_event oldevents[UV__EPOLL_PREP];
+   struct uv__io_uring_cqe* cqe;
+   uint32_t oldslot;
+   uint32_t slot;
+@@ -1274,8 +1293,8 @@
+ 
+ void uv__io_poll(uv_loop_t* loop, int timeout) {
+   uv__loop_internal_fields_t* lfields;
+-  struct epoll_event events[1024];
+-  struct epoll_event prep[256];
++  struct epoll_event events[UV__EPOLL_EVENTS];
++  struct epoll_event prep[UV__EPOLL_PREP];
+   struct uv__invalidate inv;
+   struct epoll_event* pe;
+   struct epoll_event e;
