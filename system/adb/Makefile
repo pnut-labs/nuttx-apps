@@ -23,7 +23,14 @@
 include $(APPDIR)/Make.defs
 
 ADB_URL ?= "https://github.com/spiriou/microADB/archive"
-ADB_VERSION ?= master
+
+# One commit, never master, and its archive checked: moved to another only
+# once that one is tested
+
+ADB_VERSION ?= 85cc7a90101b2ae76ee4112ba285141c8fba5012
+ADB_SHA256 ?= 25a52167d72eb181d0991e5b3ff866c67d8a026f5ba0fdda1d9b14ebd1d04b61
+
+NXTOOLSDIR = $(APPDIR)/tools
 
 ADB_DIR := $(APPDIR)/system/adb
 ADB_UNPACKNAME := microADB
@@ -31,9 +38,15 @@ ADB_UNPACKDIR := $(ADB_DIR)/$(ADB_UNPACKNAME)
 
 $(ADB_UNPACKDIR):
 	@echo "Downloading: $(ADB_UNPACKNAME)"
-	$(Q) curl -O -L $(ADB_URL)/$(ADB_VERSION).zip
+	$(Q) curl -O -L -f --retry 3 $(ADB_URL)/$(ADB_VERSION).zip
+	$(Q) $(NXTOOLSDIR)/check-hash.sh sha256 $(ADB_SHA256) $(ADB_VERSION).zip
+	$(call DELDIR, $(ADB_UNPACKNAME)-$(ADB_VERSION))
 	$(Q) unzip -o $(ADB_VERSION).zip
 	$(call DELFILE, $(ADB_VERSION).zip)
+	$(Q) cd $(ADB_UNPACKNAME)-$(ADB_VERSION) && \
+	     for p in $(sort $(wildcard $(ADB_DIR)/*.patch)); do \
+	       patch -p1 < $$p || exit 1; \
+	     done
 	$(call MOVEFILE, $(ADB_UNPACKNAME)-$(ADB_VERSION), $(ADB_UNPACKDIR))
 
 # adb server app
@@ -68,7 +81,7 @@ CSRCS += $(ADB_UNPACKNAME)/hal/hal_uv_client_qemu.c
 endif
 
 ifeq ($(CONFIG_ADBD_AUTHENTICATION),y)
-CSRCS += $(ADB_UNPACKNAME)/adb_auth_key.c
+CSRCS += adb_auth.c
 endif
 
 ifeq ($(CONFIG_ADBD_FILE_SERVICE),y)

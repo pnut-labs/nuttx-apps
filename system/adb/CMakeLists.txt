@@ -28,17 +28,30 @@ if(CONFIG_SYSTEM_ADBD)
       set(ADBD_URL "https://github.com/spiriou/microADB/archive")
     endif()
 
+    # One commit, never master, and its archive checked: another version
+    # comes with its own hash
     if(NOT ADBD_VERSION)
-      set(ADBD_VERSION "b0bc09a7612000186df723f2fe55705b1c2fe873")
+      set(ADBD_VERSION "85cc7a90101b2ae76ee4112ba285141c8fba5012")
+    endif()
+
+    if(NOT ADBD_SHA256)
+      set(ADBD_SHA256
+          "25a52167d72eb181d0991e5b3ff866c67d8a026f5ba0fdda1d9b14ebd1d04b61")
     endif()
 
     FetchContent_Declare(
       microADB
-      URL "${ADBD_URL}/${ADBD_VERSION}.zip" SOURCE_DIR
+      URL "${ADBD_URL}/${ADBD_VERSION}.zip" URL_HASH SHA256=${ADBD_SHA256}
+          SOURCE_DIR
           ${CMAKE_CURRENT_LIST_DIR}/microADB BINARY_DIR
           ${NUTTX_BINARY_DIR}/apps/system/microADB/microADB
       DOWNLOAD_NO_PROGRESS true
-      TIMEOUT 30)
+      TIMEOUT 30
+      PATCH_COMMAND
+        patch -p1 -i
+        ${CMAKE_CURRENT_LIST_DIR}/0001-microadb-check-key-signatures.patch &&
+        patch -p1 -i
+        ${CMAKE_CURRENT_LIST_DIR}/0002-microadb-stop-on-sigterm.patch)
 
     FetchContent_GetProperties(microADB)
 
@@ -63,7 +76,7 @@ if(CONFIG_SYSTEM_ADBD)
   endif()
 
   if(CONFIG_ADBD_AUTHENTICATION)
-    list(APPEND CSRCS microADB/adb_auth_key.c)
+    list(APPEND CSRCS adb_auth.c)
   endif()
 
   if(CONFIG_ADBD_FILE_SERVICE)
