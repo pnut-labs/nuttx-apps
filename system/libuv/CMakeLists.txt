@@ -34,8 +34,11 @@ if(CONFIG_LIBUV)
       libuv_fetch
       URL ${LIBUV_URL} SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/libuv BINARY_DIR
           ${NUTTX_BINARY_DIR}/apps/system/libuv/libuv
-      PATCH_COMMAND patch -p1 -d ${CMAKE_CURRENT_LIST_DIR}/libuv <
-                    ${CMAKE_CURRENT_LIST_DIR}/0001-libuv-port-for-nuttx.patch
+      PATCH_COMMAND
+        patch -p1 -d ${CMAKE_CURRENT_LIST_DIR}/libuv <
+        ${CMAKE_CURRENT_LIST_DIR}/0001-libuv-port-for-nuttx.patch && patch -p1
+        -d ${CMAKE_CURRENT_LIST_DIR}/libuv -i
+        ${CMAKE_CURRENT_LIST_DIR}/0002-libuv-epoll-arrays-sized-by-the-build.patch
       DOWNLOAD_NO_PROGRESS true
       TIMEOUT 30)
 

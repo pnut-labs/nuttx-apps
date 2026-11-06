@@ -34,14 +34,17 @@ $(LIBUV_TARBALL):
 	@echo "Downloading: $(LIBUV_TARBALL)"
 	$(Q) curl -L $(LIBUV_URL) -o $(LIBUV_TARBALL)
 
-$(LIBUV_UNPACK): $(LIBUV_TARBALL)
+# The tree unpacked and patched again whenever a patch changes: its stamp
+# depends on them
+
+$(LIBUV_UNPACK)/.patch: $(LIBUV_TARBALL) $(LIBUV_PATCHS)
 	@echo "Unpacking: $(LIBUV_TARBALL) -> $(LIBUV_UNPACK)"
 	$(call DELDIR, $(LIBUV_UNPACK))
 	$(Q) unzip $(LIBUV_TARBALL)
 	$(Q) mv libuv-$(LIBUV_VERSION) $(LIBUV_UNPACK)
-	$(Q) cat $(LIBUV_PATCHS) | patch -s -N -d $(LIBUV_UNPACK) -p1
-
-$(LIBUV_UNPACK)/.patch: $(LIBUV_UNPACK)
+	$(Q) for p in $(LIBUV_PATCHS); do \
+	       patch -s -N -d $(LIBUV_UNPACK) -p1 < $$p || exit 1; \
+	     done
 	$(Q) touch $(LIBUV_UNPACK)/.patch
 
 # Build libuv library

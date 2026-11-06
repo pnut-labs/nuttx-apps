@@ -37,10 +37,18 @@ if LIBUV_BACKEND_EPOLL
 config LIBUV_MAX_EPOLL_EVENTS
 	int "libuv max epoll events"
 	default 64
+	range 1 1024
+	---help---
+		The events uv__io_poll() takes from one epoll_wait(), kept on
+		the loop's stack (16 bytes each).
 
 config LIBUV_PREP_EVENT_SIZE
 	int "libuv prep event size"
 	default 1
+	range 1 256
+	---help---
+		io_uring's batch of epoll_ctl() calls, kept on the loop's stack;
+		NuttX has no io_uring, so it is never filled.
 
 endif
 
