@@ -25,7 +25,18 @@ include $(APPDIR)/Make.defs
 LIBSODIUM_VERSION = $(patsubst "%",%,$(strip $(CONFIG_LIBSODIUM_VERSION)))
 LIBSODIUM_URL ?= "https://github.com/jedisct1/libsodium/releases/download/$(LIBSODIUM_VERSION)-RELEASE"
 
-LIBSODIUM_TARGZ = "libsodium-$(LIBSODIUM_VERSION).tar.gz"
+# Unquoted: as a make target, a name in quotes is never found, so the
+# archive was downloaded again at every build, over any copy already there
+
+LIBSODIUM_TARGZ = libsodium-$(LIBSODIUM_VERSION).tar.gz
+
+# The release's archive is checked before it is unpacked: its SHA-256 for
+# the version the Kconfig names by default; another version needs its own,
+# given as LIBSODIUM_SHA256
+
+ifeq ($(LIBSODIUM_VERSION),1.0.18)
+LIBSODIUM_SHA256 ?= 6f504490b342a4f8a4c4a02fc9b866cbef8622d5df4e5452b46be121e46636c1
+endif
 
 LIBSODIUM_UNPACKNAME = libsodium
 UNPACK ?= tar -xaf
@@ -53,7 +64,15 @@ $(LIBSODIUM_TARGZ):
 	$(Q) $(call DOWNLOAD,$(LIBSODIUM_URL),$(LIBSODIUM_TARGZ))
 
 $(LIBSODIUM_UNPACKNAME): $(LIBSODIUM_TARGZ)
+	$(Q) if [ -z "$(LIBSODIUM_SHA256)" ]; then \
+	       echo "libsodium $(LIBSODIUM_VERSION): no SHA-256 to check it" \
+	            "against: give LIBSODIUM_SHA256" >&2; \
+	       exit 1; \
+	     fi
+	$(Q) $(APPDIR)/tools/check-hash.sh sha256 $(LIBSODIUM_SHA256) $(LIBSODIUM_TARGZ)
 	@echo "Unpacking: $(LIBSODIUM_TARGZ) -> $(LIBSODIUM_UNPACKNAME)"
+	$(call DELDIR, $(LIBSODIUM_UNPACKNAME))
+	$(call DELDIR, $(LIBSODIUM_UNPACKNAME)-$(LIBSODIUM_VERSION))
 	$(Q) $(UNPACK) $(LIBSODIUM_TARGZ)
 	$(Q) mv $(LIBSODIUM_UNPACKNAME)-$(LIBSODIUM_VERSION) $(LIBSODIUM_UNPACKNAME)
 	$(Q) echo "Patching $(LIBSODIUM_UNPACKNAME)"
