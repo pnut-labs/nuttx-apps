@@ -30,11 +30,27 @@ if(CONFIG_LIBSODIUM)
   if(NOT EXISTS ${LIBSODIUM_DIR})
     set(LIBSODIUM_URL https://github.com/jedisct1/libsodium/archive)
 
+    # The tag's archive is checked: its SHA-256 for the version the Kconfig
+    # names by default; another version needs its own, given as
+    # LIBSODIUM_ZIP_SHA256
+
+    if(NOT LIBSODIUM_ZIP_SHA256 AND CONFIG_LIBSODIUM_VERSION STREQUAL "1.0.18")
+      set(LIBSODIUM_ZIP_SHA256
+          e530b577c233346a784bf8a141b36ee8a4437bc716022024f94c492c7f0860ab)
+    endif()
+    if(NOT LIBSODIUM_ZIP_SHA256)
+      message(
+        FATAL_ERROR
+          "libsodium ${CONFIG_LIBSODIUM_VERSION}: no SHA-256 to check it against: give LIBSODIUM_ZIP_SHA256"
+      )
+    endif()
+
     FetchContent_Declare(
       libsodium_fetch
-      URL ${LIBSODIUM_URL}/${CONFIG_LIBSODIUM_VERSION}.zip SOURCE_DIR
-          ${CMAKE_CURRENT_LIST_DIR}/libsodium BINARY_DIR
-          ${NUTTX_BINARY_DIR}/apps/crypto/libsodium/libsodium
+      URL ${LIBSODIUM_URL}/${CONFIG_LIBSODIUM_VERSION}.zip
+      URL_HASH SHA256=${LIBSODIUM_ZIP_SHA256}
+      SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/libsodium BINARY_DIR
+      ${NUTTX_BINARY_DIR}/apps/crypto/libsodium/libsodium
       PATCH_COMMAND
         patch -p1 -d ${CMAKE_CURRENT_LIST_DIR}/libsodium <
         ${CMAKE_CURRENT_LIST_DIR}/0001-fix-multiple-definition-bug-in-libsodium-test.patch
