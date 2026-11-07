@@ -235,9 +235,9 @@ int wpa_driver_wext_associate(FAR struct wpa_wconfig_s *wconfig)
   ninfo("sta_mode=%u auth_wpa=%08x cipher_mode=%08x alg=%d\n",
         wconfig->sta_mode, wconfig->auth_wpa, wconfig->cipher_mode,
         wconfig->alg);
-  ninfo("ifname=%s ssid[%u]=%s passphrase[%u]=%s\n",
-        wconfig->ifname, wconfig->ssidlen, wconfig->ssid, wconfig->phraselen,
-        wconfig->passphrase);
+  ninfo("ifname=%s ssid[%u]=%s passphrase: %u bytes\n",
+        wconfig->ifname, wconfig->ssidlen, wconfig->ssid,
+        wconfig->phraselen);
 
   /* Get a socket (only so that we get access to the INET subsystem) */
 
