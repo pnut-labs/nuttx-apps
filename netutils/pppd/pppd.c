@@ -162,6 +162,42 @@ static int open_tty(const char *dev)
 }
 
 /****************************************************************************
+ * Name: ppp_stopped
+ *
+ * Description:
+ *   Whether the caller asked pppd() to stop (pppd_settings_s.stop)
+ *
+ ****************************************************************************/
+
+static bool ppp_stopped(FAR struct ppp_context_s *ctx)
+{
+  return ctx->settings->stop != NULL && *ctx->settings->stop;
+}
+
+/****************************************************************************
+ * Name: ppp_wait
+ *
+ * Description:
+ *   Sleep for some seconds, or less once asked to stop; true if asked
+ *
+ ****************************************************************************/
+
+static bool ppp_wait(FAR struct ppp_context_s *ctx, unsigned int seconds)
+{
+  while (seconds-- > 0)
+    {
+      if (ppp_stopped(ctx))
+        {
+          return true;
+        }
+
+      sleep(1);
+    }
+
+  return ppp_stopped(ctx);
+}
+
+/****************************************************************************
  * Name: ppp_check_errors
  ****************************************************************************/
 
@@ -205,14 +241,46 @@ void ppp_reconnect(FAR struct ppp_context_s *ctx)
   int ret;
   int retry = PPP_MAX_CONNECT;
   const struct pppd_settings_s *pppd_settings = ctx->settings;
+
+  if (ctx->ipcp_told)
+    {
+      ctx->ipcp_told = false;
+      pppd_settings->notify(pppd_settings->arg, PPPD_LINK_DOWN, NULL);
+    }
+
   netlib_ifdown((char *)ctx->ifname);
 
+  /* With no connect script the caller has connected the line, and dials
+   * it again itself once told the link is down: a hang-up here
+   * (Terminate-Requests, "+++") could only end the call it made
+   */
+
+  if (pppd_settings->connect_script == NULL)
+    {
+      ppp_init(ctx);
+      ppp_connect(ctx);
+      ctx->ip_len = 0;
+      return;
+    }
+
   lcp_disconnect(ctx, ++ctx->ppp_id);
-  sleep(1);
+  if (ppp_wait(ctx, 1))
+    {
+      return;
+    }
+
   lcp_disconnect(ctx, ++ctx->ppp_id);
-  sleep(1);
+  if (ppp_wait(ctx, 1))
+    {
+      return;
+    }
+
   write(ctx->ctl.fd, "+++", 3);
-  sleep(2);
+  if (ppp_wait(ctx, 2))
+    {
+      return;
+    }
+
   write(ctx->ctl.fd, "ATE1\r\n", 6);
 
   if (pppd_settings->disconnect_script)
@@ -228,6 +296,11 @@ void ppp_reconnect(FAR struct ppp_context_s *ctx)
     {
       do
         {
+          if (ppp_stopped(ctx))
+            {
+              return;
+            }
+
           ret = chat(&ctx->ctl, pppd_settings->connect_script);
           if (ret < 0)
             {
@@ -239,11 +312,14 @@ void ppp_reconnect(FAR struct ppp_context_s *ctx)
 #ifdef PPP_ARCH_HAVE_MODEM_RESET
                   ppp_arch_modem_reset(pppd_settings->ttyname);
 #endif
-                  sleep(45);
+                  if (ppp_wait(ctx, 45))
+                    {
+                      return;
+                    }
                 }
-              else
+              else if (ppp_wait(ctx, 10))
                 {
-                  sleep(10);
+                  return;
                 }
             }
         }
@@ -340,8 +416,8 @@ int pppd(const struct pppd_settings_s *pppd_settings)
       return 2;
     }
 
-  ctx->ctl.echo = true;
-  ctx->ctl.verbose = true;
+  ctx->ctl.echo = !pppd_settings->quiet;
+  ctx->ctl.verbose = !pppd_settings->quiet;
   ctx->ctl.timeout = 30;
 
   fds[0].fd = ctx->if_fd;
@@ -353,7 +429,7 @@ int pppd(const struct pppd_settings_s *pppd_settings)
   ppp_init(ctx);
   ppp_reconnect(ctx);
 
-  while (1)
+  while (!ppp_stopped(ctx))
     {
       fds[0].revents = fds[1].revents = 0;
 
@@ -395,5 +471,18 @@ int pppd(const struct pppd_settings_s *pppd_settings)
         }
     }
 
-  return 1;
+  /* Asked to stop: end the link, then let go of everything */
+
+  if (ctx->ipcp_told)
+    {
+      ctx->ipcp_told = false;
+      pppd_settings->notify(pppd_settings->arg, PPPD_LINK_DOWN, NULL);
+    }
+
+  lcp_disconnect(ctx, ++ctx->ppp_id);
+  netlib_ifdown((char *)ctx->ifname);
+  close(ctx->ctl.fd);
+  close(ctx->if_fd);
+  free(ctx);
+  return 0;
 }

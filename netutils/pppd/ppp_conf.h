@@ -56,11 +56,18 @@
 #define xxdebug_printf          ninfo
 #define debug_printf            ninfo
 
-#define PPP_RX_BUFFER_SIZE      1024 //1024  //GD 2048 for 1280 IPv6 MTU
+/* A whole 1500-byte IP packet, from the peer and from the TUN device: a
+ * TUN read refuses a buffer smaller than its packet and keeps the packet,
+ * so this must be at least CONFIG_NET_TUN_PKTSIZE
+ */
+
+#define PPP_RX_BUFFER_SIZE      1600
 
 #define AHDLC_TX_OFFLINE        5
 
 #define IPCP_GET_PEER_IP        1
+#define IPCP_GET_PRI_DNS        1     /* Ask the peer for its name servers */
+#define IPCP_GET_SEC_DNS        1
 
 #define PPP_STATISTICS          1
 #define PPP_DEBUG               defined(CONFIG_DEBUG_NET_INFO)

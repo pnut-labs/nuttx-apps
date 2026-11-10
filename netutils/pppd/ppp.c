@@ -43,6 +43,8 @@
 
 #include <nuttx/config.h>
 
+#include <string.h>
+
 #include "ppp_conf.h"
 #include "ppp_arch.h"
 #include "ppp.h"
@@ -235,10 +237,43 @@ void ppp_poll(FAR struct ppp_context_s *ctx)
       ahdlc_rx(ctx, c);
     }
 
+  /* IPCP went down without a reconnect: the peer started LCP again
+   * (lcp_rx() on a Configure-Request), and IPCP will come up anew, maybe
+   * with other addresses
+   */
+
+  if (ctx->ipcp_told &&
+      !((ctx->ipcp_state & IPCP_TX_UP) && (ctx->ipcp_state & IPCP_RX_UP)))
+    {
+      ctx->ipcp_told = false;
+      ctx->settings->notify(ctx->settings->arg, PPPD_LINK_DOWN, NULL);
+    }
+
   /* If IPCP came up then our link should be up. */
 
   if ((ctx->ipcp_state & IPCP_TX_UP) && (ctx->ipcp_state & IPCP_RX_UP))
     {
+      if (!ctx->ipcp_told && ctx->settings->notify != NULL)
+        {
+          struct pppd_link_s link;
+
+          memset(&link, 0, sizeof(link));
+          strlcpy(link.ifname, (FAR const char *)ctx->ifname,
+                  sizeof(link.ifname));
+          link.local = ctx->local_ip;
+#ifdef IPCP_GET_PEER_IP
+          link.peer = ctx->peer_ip;
+#endif
+#ifdef IPCP_GET_PRI_DNS
+          link.dns[0] = ctx->pri_dns_addr;
+#endif
+#ifdef IPCP_GET_SEC_DNS
+          link.dns[1] = ctx->sec_dns_addr;
+#endif
+          ctx->ipcp_told = true;
+          ctx->settings->notify(ctx->settings->arg, PPPD_LINK_UP, &link);
+        }
+
       lcp_echo_request(ctx);
       return;
     }
