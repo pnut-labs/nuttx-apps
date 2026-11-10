@@ -60,7 +60,10 @@
 enum pppd_event_e
 {
   PPPD_LINK_UP,                    /* IPCP is done: the interface is up */
-  PPPD_LINK_DOWN                   /* The link is lost: pppd() dials again */
+  PPPD_LINK_DOWN                   /* The link is down: lost, renegotiated
+                                    * by the peer, or stopped.  Unless
+                                    * stopped, pppd() connects again, and
+                                    * dials only with a connect script */
 };
 
 /* The link's addresses, as IPCP gave them; a name server the peer did not
@@ -111,8 +114,9 @@ struct pppd_settings_s
   FAR volatile bool *stop;
 
   /* If not NULL: called on pppd()'s thread when the link comes up (with its
-   * addresses) and when it is lost (link NULL).  pppd() then leaves the
-   * name servers to the caller instead of giving them to the resolver.
+   * addresses) and when it goes down (link NULL; enum pppd_event_e says
+   * when).  pppd() then leaves the name servers to the caller instead of
+   * giving them to the resolver.
    */
 
   CODE void (*notify)(FAR void *arg, enum pppd_event_e event,
