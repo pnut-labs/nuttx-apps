@@ -50,6 +50,7 @@
 #include <stdint.h>
 
 #include "netutils/chat.h"
+#include "netutils/pppd.h"
 
 #include <nuttx/debug.h>
 #include "ppp_conf.h"
@@ -158,6 +159,7 @@ struct ppp_context_s
 
   /* IPCP */
 
+  bool      ipcp_told;     /* The caller was told the link is up */
   uint8_t   ipcp_state;
   uint8_t   ipcp_retry;
   time_t    ipcp_prev_seconds;

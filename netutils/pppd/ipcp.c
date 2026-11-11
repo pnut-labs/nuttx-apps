@@ -362,7 +362,15 @@ void ipcp_rx(FAR struct ppp_context_s *ctx, FAR uint8_t * buffer,
               ((FAR uint8_t *)&ctx->pri_dns_addr)[1] = *bptr++;
               ((FAR uint8_t *)&ctx->pri_dns_addr)[2] = *bptr++;
               ((FAR uint8_t *)&ctx->pri_dns_addr)[3] = *bptr++;
-              netlib_set_ipv4dnsaddr(&ctx->pri_dns_addr);
+
+              /* A caller told of the link chooses the name servers */
+
+#ifdef CONFIG_NETDB_DNSCLIENT
+              if (ctx->settings->notify == NULL)
+                {
+                  netlib_set_ipv4dnsaddr(&ctx->pri_dns_addr);
+                }
+#endif
               break;
 #endif
 
@@ -373,7 +381,12 @@ void ipcp_rx(FAR struct ppp_context_s *ctx, FAR uint8_t * buffer,
               ((FAR uint8_t *)&ctx->sec_dns_addr)[1] = *bptr++;
               ((FAR uint8_t *)&ctx->sec_dns_addr)[2] = *bptr++;
               ((FAR uint8_t *)&ctx->sec_dns_addr)[3] = *bptr++;
-              netlib_set_ipv4dnsaddr(&ctx->sec_dns_addr);
+#ifdef CONFIG_NETDB_DNSCLIENT
+              if (ctx->settings->notify == NULL)
+                {
+                  netlib_set_ipv4dnsaddr(&ctx->sec_dns_addr);
+                }
+#endif
               break;
 #endif
 
@@ -388,7 +401,7 @@ void ipcp_rx(FAR struct ppp_context_s *ctx, FAR uint8_t * buffer,
 #ifdef IPCP_GET_PRI_DNS
       printip(ctx->pri_dns_addr);
 #endif
-#ifdef IPCP_GET_PRI_DNS
+#ifdef IPCP_GET_SEC_DNS
       printip(ctx->sec_dns_addr);
 #endif
       DEBUG1(("\n"));
@@ -428,7 +441,7 @@ void ipcp_rx(FAR struct ppp_context_s *ctx, FAR uint8_t * buffer,
               break;
 #endif
 
-#ifdef IPCP_GET_PRI_DNS
+#ifdef IPCP_GET_SEC_DNS
             case IPCP_SECONDARY_DNS:
               ctx->ipcp_state |= IPCP_SEC_DNS_BIT;
               bptr += 5;

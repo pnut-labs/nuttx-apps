@@ -37,6 +37,17 @@
 #define __APPS_NETUTILS_PPPD_PPP_CONF_H
 
 /****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+/* The configuration first: PPP_RX_BUFFER_SIZE depends on it, and a .c
+ * file that included this before it would size struct ppp_context_s
+ * apart from the others
+ */
+
+#include <nuttx/config.h>
+
+/****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
@@ -56,11 +67,22 @@
 #define xxdebug_printf          ninfo
 #define debug_printf            ninfo
 
-#define PPP_RX_BUFFER_SIZE      1024 //1024  //GD 2048 for 1280 IPv6 MTU
+/* A whole 1500-byte IP packet, from the peer and from the TUN device: a
+ * TUN read refuses a buffer smaller than its packet and keeps the packet,
+ * so this is at least CONFIG_NET_TUN_PKTSIZE
+ */
+
+#if defined(CONFIG_NET_TUN_PKTSIZE) && CONFIG_NET_TUN_PKTSIZE > 1600
+#  define PPP_RX_BUFFER_SIZE    CONFIG_NET_TUN_PKTSIZE
+#else
+#  define PPP_RX_BUFFER_SIZE    1600
+#endif
 
 #define AHDLC_TX_OFFLINE        5
 
 #define IPCP_GET_PEER_IP        1
+#define IPCP_GET_PRI_DNS        1     /* Ask the peer for its name servers */
+#define IPCP_GET_SEC_DNS        1
 
 #define PPP_STATISTICS          1
 #define PPP_DEBUG               defined(CONFIG_DEBUG_NET_INFO)
