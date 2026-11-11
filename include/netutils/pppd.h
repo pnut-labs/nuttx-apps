@@ -116,8 +116,8 @@ struct pppd_settings_s
   /* If not NULL: called on pppd()'s thread when the link comes up (with its
    * addresses) and when it goes down (link NULL; enum pppd_event_e says
    * when).  link is valid only during the call: copy what is needed.
-   * pppd() then leaves the name servers to the caller instead of giving
-   * them to the resolver.
+   * pppd() then leaves the name servers and the default route to the
+   * caller, instead of giving them to the resolver and the routing table.
    */
 
   CODE void (*notify)(FAR void *arg, enum pppd_event_e event,
