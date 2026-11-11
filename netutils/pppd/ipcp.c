@@ -182,9 +182,11 @@ void ipcp_rx(FAR struct ppp_context_s *ctx, FAR uint8_t * buffer,
               printip(ctx->peer_ip);
               DEBUG1(("\n"));
 
-              /* A caller told of the link chooses the routes: with
-               * CONFIG_NET_ROUTE, this would replace the default route,
-               * at every Configure-Request, even after the link is up
+              /* A caller told of the link gets the peer's address with
+               * it, and sets what it needs.  netlib_set_dripv4addr()
+               * sets the interface's peer (destination) address and, with
+               * CONFIG_NET_ROUTE, replaces the default route: here at
+               * every Configure-Request, even after the link is up.
                */
 
               if (ctx->settings->notify == NULL)
