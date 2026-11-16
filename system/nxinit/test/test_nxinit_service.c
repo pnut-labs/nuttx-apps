@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/wait.h>
 #include <cmocka.h>
 
 #include "../parser.h"
@@ -399,3 +400,142 @@ void test_nxinit_service_find_by_pid_running(FAR void **state)
 
   service_manager_free_all(&sm);
 }
+
+/****************************************************************************
+ * Name: test_nxinit_service_norestart
+ *
+ * Description:
+ *   A "norestart" service that exits, cleanly or not, is stopped and kept:
+ *   neither restarted nor removed, and it can be started again.  One
+ *   without the option is restarted.
+ ****************************************************************************/
+
+void test_nxinit_service_norestart(FAR void **state)
+{
+  struct service_manager_s sm;
+  struct parser_s parser =
+    {
+      "service", init_service_parse, init_service_check, &sm
+    };
+
+  char decl1[] = "service app /bin/app";
+  char opt[] = "  norestart";
+  char decl2[] = "service plain /bin/plain";
+  FAR struct service_s *app;
+  FAR struct service_s *plain;
+  int status;
+
+  service_manager_init(&sm);
+
+  assert_int_equal(init_service_parse(&parser, true, decl1), 0);
+  assert_int_equal(init_service_parse(&parser, false, opt), 0);
+  assert_int_equal(init_service_parse(&parser, true, decl2), 0);
+  assert_int_equal(init_service_check(&parser), 0);
+
+  app   = init_service_find_by_name(&sm, "app");
+  plain = init_service_find_by_name(&sm, "plain");
+  assert_non_null(app);
+  assert_non_null(plain);
+
+  for (status = 0; status < 2; status++)
+    {
+      app->flags |= SVC_RUNNING;
+      app->pid    = 7;
+
+      init_service_reap(app, status);
+      assert_int_equal(app->flags & (SVC_RUNNING | SVC_RESTARTING |
+                                     SVC_DISABLED | SVC_REMOVE),
+                       SVC_DISABLED);
+      assert_string_equal(init_service_state(app), "stopped");
+
+      init_service_refresh(&sm);
+      assert_ptr_equal(init_service_find_by_name(&sm, "app"), app);
+    }
+
+#ifdef CONFIG_EXAMPLES_HELLO
+  /* Started again by name: a program that runs, and exits at once */
+
+  free(app->argv[2]);
+  app->argv[2] = strdup("hello");
+  assert_non_null(app->argv[2]);
+
+  status = init_service_start(app);
+  assert_true(status > 0);
+  assert_int_equal(app->flags & (SVC_RUNNING | SVC_DISABLED), SVC_RUNNING);
+
+  assert_int_equal(waitpid(status, NULL, 0), status);
+  init_service_reap(app, 0);
+  assert_int_equal(app->flags & (SVC_RUNNING | SVC_RESTARTING |
+                                 SVC_DISABLED | SVC_REMOVE),
+                   SVC_DISABLED);
+#endif
+
+  plain->flags |= SVC_RUNNING;
+  plain->pid    = 8;
+
+  init_service_reap(plain, 0);
+  assert_int_equal(plain->flags & (SVC_RESTARTING | SVC_DISABLED),
+                   SVC_RESTARTING);
+
+  service_manager_free_all(&sm);
+}
+
+/****************************************************************************
+ * Name: test_nxinit_service_name_max
+ *
+ * Description:
+ *   A service's name, and a class's, may be NXINIT_SERVICE_NAME_MAX - 1
+ *   bytes long, kept whole; a longer one is refused.
+ ****************************************************************************/
+
+void test_nxinit_service_name_max(FAR void **state)
+{
+  struct service_manager_s sm;
+  struct parser_s parser =
+    {
+      "service", init_service_parse, init_service_check, &sm
+    };
+
+  char name[NXINIT_SERVICE_NAME_MAX + 1];
+  char line[NXINIT_SERVICE_NAME_MAX + 32];
+  FAR struct service_class_s *c;
+  FAR struct service_s *s;
+
+  service_manager_init(&sm);
+
+  /* The longest name */
+
+  memset(name, 'a', sizeof(name));
+  name[NXINIT_SERVICE_NAME_MAX - 1] = '\0';
+
+  snprintf(line, sizeof(line), "service %s /bin/a", name);
+  assert_int_equal(init_service_parse(&parser, true, line), 0);
+  s = init_service_find_by_name(&sm, name);
+  assert_non_null(s);
+  assert_string_equal(s->argv[1], name);
+
+  snprintf(line, sizeof(line), "  class %s", name);
+  assert_int_equal(init_service_parse(&parser, false, line), 0);
+  c = list_first_entry(&s->classes, struct service_class_s, node);
+  assert_string_equal(c->name, name);
+
+  /* One more byte: a class, then a service */
+
+  name[NXINIT_SERVICE_NAME_MAX - 1] = 'b';
+  name[NXINIT_SERVICE_NAME_MAX]     = '\0';
+
+  snprintf(line, sizeof(line), "  class %s", name);
+  assert_int_equal(init_service_parse(&parser, false, line), -ENAMETOOLONG);
+  assert_ptr_equal(list_last_entry(&s->classes, struct service_class_s,
+                                   node), c);
+
+  snprintf(line, sizeof(line), "service %s /bin/b", name);
+  assert_int_equal(init_service_parse(&parser, true, line), -ENAMETOOLONG);
+  assert_ptr_equal(list_last_entry(&sm.services, struct service_s, node),
+                   s);
+
+  assert_int_equal(init_service_check(&parser), 0);
+
+  service_manager_free_all(&sm);
+}
+

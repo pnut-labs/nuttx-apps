@@ -49,11 +49,13 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include "control.h"
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define SVC_LINE_MAX  80
+#define SVC_LINE_MAX  NXINIT_CONTROL_LINE_MAX
 
 /****************************************************************************
  * Private Types
@@ -149,8 +151,12 @@ int main(int argc, FAR char *argv[])
       return EXIT_FAILURE;
     }
 
-  snprintf(cmd, sizeof(cmd), "%s%s%s\n", argv[1], argc == 3 ? " " : "",
-           argc == 3 ? argv[2] : "");
+  if (snprintf(cmd, sizeof(cmd), "%s%s%s\n", argv[1], argc == 3 ? " " : "",
+               argc == 3 ? argv[2] : "") >= (int)sizeof(cmd))
+    {
+      fprintf(stderr, "svc: command too long\n");
+      return EXIT_FAILURE;
+    }
 
   memset(&conn, 0, sizeof(conn));
   conn.fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);

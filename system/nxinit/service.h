@@ -58,6 +58,13 @@
 /* Flags below are new added.
  */
 
+/* Not restarted when it exits on its own, nor when its start fails, but
+ * kept: stopped, until it is started again by name or with its class, as
+ * "oneshot" is in Android's init
+ */
+
+#define SVC_NORESTART   (1 << 28)
+
 /* Override the previous definition for a service with the same name */
 
 #define SVC_OVERRIDE    (1 << 29)
@@ -70,7 +77,12 @@
 
 #define SVC_REMOVE      (1 << 31)
 
-#define NXINIT_SERVICE_NAME_MAX    32
+/* The room for a service's or a class's name, its NUL included: a name
+ * is at most NXINIT_SERVICE_NAME_MAX - 1 bytes long, enough for a
+ * reverse-DNS id
+ */
+
+#define NXINIT_SERVICE_NAME_MAX    64
 
 #define NXINIT_ACTION_CMD_ARGS_MAX 99
 

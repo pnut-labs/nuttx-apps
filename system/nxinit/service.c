@@ -103,6 +103,8 @@ static int option_override(FAR struct service_manager_s *sm,
                            int argc, FAR char **argv);
 static int option_oneshot(FAR struct service_manager_s *sm,
                           int argc, FAR char **argv);
+static int option_norestart(FAR struct service_manager_s *sm,
+                            int argc, FAR char **argv);
 static int option_console(FAR struct service_manager_s *sm,
                           int argc, FAR char **argv);
 #ifdef CONFIG_SYSTEM_NXINIT_CONTROL
@@ -125,6 +127,7 @@ static const struct cmd_map_s g_option[] =
   {"restart_period", 2, 2, option_restart_period},
   {"override", 1, 1, option_override},
   {"oneshot", 1, 1, option_oneshot},
+  {"norestart", 1, 1, option_norestart},
   {"console", 1, 2, option_console},
 #ifdef CONFIG_SYSTEM_NXINIT_CONTROL
   {"notify", 1, 1, option_notify},
@@ -139,6 +142,7 @@ static const struct flag_str_s g_flag_str[] =
 {
   {SVC_DISABLED, "disabled"},
   {SVC_ONESHOT, "oneshot"},
+  {SVC_NORESTART, "norestart"},
   {SVC_RUNNING, "running"},
   {SVC_RESTARTING, "restarting"},
   {SVC_CONSOLE, "console"},
@@ -264,7 +268,11 @@ static int option_class(FAR struct service_manager_s *sm,
   FAR struct service_class_s *c;
 
   len = strlen(argv[1]) + 1;
-  len = (len >= NXINIT_SERVICE_NAME_MAX) ? NXINIT_SERVICE_NAME_MAX : len;
+  if (len > NXINIT_SERVICE_NAME_MAX)
+    {
+      init_err("Class name '%s' too long", argv[1]);
+      return -ENAMETOOLONG;
+    }
 
   list_for_every_entry(&s->classes, c, struct service_class_s, node)
     {
@@ -282,7 +290,6 @@ static int option_class(FAR struct service_manager_s *sm,
     }
 
   memcpy(c->name, argv[1], len);
-  c->name[len] = '\0'; /* Always ensure null termination */
   list_add_tail(&s->classes, &c->node);
   return 0;
 }
@@ -324,6 +331,26 @@ static int option_oneshot(FAR struct service_manager_s *sm,
                                             node);
 
   add_flags(s, SVC_ONESHOT);
+  return 0;
+}
+
+/****************************************************************************
+ * Name: option_norestart
+ *
+ * Description:
+ *   Handle the service option "norestart": a service that exits on its own
+ *   is not restarted, and is kept, to be started again by name or with its
+ *   class.
+ *
+ ****************************************************************************/
+
+static int option_norestart(FAR struct service_manager_s *sm,
+                            int argc, FAR char **argv)
+{
+  FAR struct service_s *s = list_last_entry(&sm->services, struct service_s,
+                                            node);
+
+  add_flags(s, SVC_NORESTART);
   return 0;
 }
 
@@ -595,6 +622,10 @@ void init_service_reap(FAR struct service_s *service, int status)
     {
       add_flags(service, SVC_DISABLED | SVC_REMOVE);
     }
+  else if (check_flags(service, SVC_NORESTART))
+    {
+      add_flags(service, SVC_DISABLED);
+    }
 
   if (!check_flags(service, SVC_DISABLED))
     {
@@ -844,6 +875,7 @@ int init_service_parse(FAR const struct parser_s *parser,
   FAR struct service_s *s;
   int argc;
   size_t i;
+  int ret;
 
   if (create)
     {
@@ -855,11 +887,24 @@ int init_service_parse(FAR const struct parser_s *parser,
         }
 
       s->argc = init_parse_arguments(buf, true, nitems(s->argv), s->argv);
-      if (s->argc < 3)
+      if (s->argc < 3 || strlen(s->argv[1]) >= NXINIT_SERVICE_NAME_MAX)
         {
-          init_err("Get arguments %d", s->argc);
+          ret = s->argc < 3 ? -EINVAL : -ENAMETOOLONG;
+          if (ret == -ENAMETOOLONG)
+            {
+              init_err("Service name '%s' too long", s->argv[1]);
+            }
+          else
+            {
+              init_err("Get arguments %d", s->argc);
+            }
+          while (s->argc > 0)
+            {
+              free(s->argv[--s->argc]);
+            }
+
           free(s);
-          return -EINVAL;
+          return ret;
         }
 
       s->restart_period = CONFIG_SYSTEM_NXINIT_SERVICE_RESTART_PERIOD;

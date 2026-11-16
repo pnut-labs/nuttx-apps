@@ -63,11 +63,14 @@ int main(int argc, FAR char *argv[])
       cmocka_unit_test(test_nxinit_service_console_option),
       cmocka_unit_test(test_nxinit_service_stop_restarting),
       cmocka_unit_test(test_nxinit_service_find_by_pid_running),
+      cmocka_unit_test(test_nxinit_service_norestart),
+      cmocka_unit_test(test_nxinit_service_name_max),
 #ifdef CONFIG_SYSTEM_NXINIT_CONTROL
       cmocka_unit_test(test_nxinit_control_state),
       cmocka_unit_test(test_nxinit_control_who),
       cmocka_unit_test(test_nxinit_control_commands),
       cmocka_unit_test(test_nxinit_control_ready),
+      cmocka_unit_test(test_nxinit_control_long_name),
       cmocka_unit_test(test_nxinit_control_property),
 #endif
     };
