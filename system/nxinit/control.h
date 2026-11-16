@@ -38,6 +38,10 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* The longest line of the control socket, its newline included */
+
+#define NXINIT_CONTROL_LINE_MAX  (NXINIT_SERVICE_NAME_MAX + 64)
+
 /* The control socket (CONFIG_SYSTEM_NXINIT_CONTROL): a local stream socket
  * speaking a text protocol.  A connection first receives the version line,
  * "nxinit 1"; then every line it sends is a command, and gets one answer:
@@ -62,12 +66,13 @@
  * On a connection that watches, an event line may come at any time, also
  * between a command and its answer (a "stop" sends "stopping" first); the
  * n lines after "ok <n>" come together.  Lines end in a newline, which may
- * come after a carriage return, and are shorter than 80 characters: a
- * longer command is answered "error ... line too long", and the connection
- * closed.  NxInit never waits on a client: one that does not read what it
- * is sent is closed, and one more than CONFIG_SYSTEM_NXINIT_CONTROL_CLIENTS
- * is answered "error ... too many clients" in place of the version line,
- * and closed.
+ * come after a carriage return, and are shorter than
+ * NXINIT_CONTROL_LINE_MAX characters, enough to name a service of the
+ * longest name: a longer command is answered "error ... line too long",
+ * and the connection closed.  NxInit never waits on a client: one that does
+ * not read what it is sent is closed, and one more than
+ * CONFIG_SYSTEM_NXINIT_CONTROL_CLIENTS is answered "error ... too many
+ * clients" in place of the version line, and closed.
  */
 
 #define NXINIT_CONTROL_VERSION   1

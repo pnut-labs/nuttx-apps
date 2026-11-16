@@ -80,6 +80,8 @@ void test_nxinit_service_args_max_boundary(FAR void **state);
 void test_nxinit_service_console_option(FAR void **state);
 void test_nxinit_service_stop_restarting(FAR void **state);
 void test_nxinit_service_find_by_pid_running(FAR void **state);
+void test_nxinit_service_norestart(FAR void **state);
+void test_nxinit_service_name_max(FAR void **state);
 
 /****************************************************************************
  * Name: test_nxinit_control_*
@@ -90,6 +92,7 @@ void test_nxinit_control_state(FAR void **state);
 void test_nxinit_control_who(FAR void **state);
 void test_nxinit_control_commands(FAR void **state);
 void test_nxinit_control_ready(FAR void **state);
+void test_nxinit_control_long_name(FAR void **state);
 void test_nxinit_control_property(FAR void **state);
 #endif
 

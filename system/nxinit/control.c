@@ -44,7 +44,7 @@
 
 /* The longest command, and the longest line of an answer */
 
-#define CONTROL_LINE_MAX  80
+#define CONTROL_LINE_MAX  NXINIT_CONTROL_LINE_MAX
 
 #define CONTROL_CLIENTS   CONFIG_SYSTEM_NXINIT_CONTROL_CLIENTS
 

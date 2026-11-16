@@ -127,7 +127,7 @@ static void control_teardown(FAR struct control_fixture_s *f)
 static bool control_run(FAR struct control_fixture_s *f,
                         FAR const char *command)
 {
-  char line[64];
+  char line[NXINIT_CONTROL_LINE_MAX];
   bool watch;
 
   strlcpy(line, command, sizeof(line));
@@ -367,3 +367,52 @@ void test_nxinit_control_property(FAR void **state)
 
   control_teardown(&f);
 }
+
+/****************************************************************************
+ * Name: test_nxinit_control_long_name
+ *
+ * Description:
+ *   A service with the longest name is named whole in every answer: who,
+ *   and its state while it stops.
+ ****************************************************************************/
+
+void test_nxinit_control_long_name(FAR void **state)
+{
+  struct control_fixture_s f;
+  struct parser_s parser =
+    {
+      "service", init_service_parse, init_service_check, &f.sm
+    };
+
+  char name[NXINIT_SERVICE_NAME_MAX];
+  char decl[NXINIT_SERVICE_NAME_MAX + 32];
+  char want[NXINIT_CONTROL_LINE_MAX];
+  char command[NXINIT_SERVICE_NAME_MAX + 16];
+  FAR struct service_s *s;
+
+  control_setup(&f);
+
+  memset(name, 'n', sizeof(name) - 1);
+  name[sizeof(name) - 1] = '\0';
+
+  snprintf(decl, sizeof(decl), "service %s /bin/n", name);
+  assert_int_equal(init_service_parse(&parser, true, decl), 0);
+  assert_int_equal(init_service_check(&parser), 0);
+
+  s = init_service_find_by_name(&f.sm, name);
+  assert_non_null(s);
+  s->flags |= SVC_RUNNING | SVC_DISABLED;
+  s->pid    = 12345;
+
+  control_run(&f, "who 12345");
+  snprintf(want, sizeof(want), "ok %s\n", name);
+  assert_string_equal(f.out, want);
+
+  snprintf(command, sizeof(command), "state %s", name);
+  control_run(&f, command);
+  snprintf(want, sizeof(want), "ok %s stopping 12345\n", name);
+  assert_string_equal(f.out, want);
+
+  control_teardown(&f);
+}
+
